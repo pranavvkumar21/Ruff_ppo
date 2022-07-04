@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="x" default="0.0" />
+  <arg name="y" default="0.0" />
+  <arg name="z" default="1.0" />
+  <arg name="yaw" default="0.0" />
+  <arg name="robot_description" default="$(find insectbot)/bot_description/sdf/mark_1/model.sdf"/>
+  <arg name="robot_name" default="mark_2"/>
+
+
+  <!-- startup simulated world -->
+  <include file="$(find insectbot)/launch/spawn_sdf.launch">
+      <arg name="robot_description" value="$(arg robot_description)"/>
+      <arg name="robot_name" value="$(arg robot_name)" />
+      <arg name="x" value="1.0" />
+      <arg name="y" value="1.0" />
+      <arg name="z" value="1.0" />
+      <arg name="yaw" value="0.0" />
+  </include>
+</launch>
