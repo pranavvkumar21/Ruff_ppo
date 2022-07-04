@@ -1,0 +1,28 @@
+<launch>
+
+  <!-- Load joint controller configurations from YAML file to parameter server -->
+  <rosparam file="$(find ruff)/config/ruff_control.yaml" command="load"/>
+
+  <!-- load the controllers -->
+  <node name="controller_manager" pkg="controller_manager" type="spawner" respawn="false"
+	output="screen" ns="/ruff" args="joint_state_controller
+					  fl1_position_controller
+					  fl2_position_controller
+            fl3_position_controller
+            fr1_position_controller
+            fr2_position_controller
+            fr3_position_controller
+            rl1_position_controller
+            rl2_position_controller
+            rl3_position_controller
+            rr1_position_controller
+            rr2_position_controller
+            rr3_position_controller"/>
+
+  <!-- convert joint states to TF transforms for rviz, etc -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"
+	respawn="false" output="screen">
+    <remap from="/joint_states" to="/ruff/joint_states" />
+  </node>
+
+</launch>

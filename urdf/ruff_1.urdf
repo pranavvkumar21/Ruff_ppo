@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com)
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot name="ruff">
+
+<!-- ros control plugin -->
+  <gazebo>
+      <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+          <robotNamespace>/ruff</robotNamespace>
+          <robotSimType>gazebo_ros_control/DefaultRobotHWSim</robotSimType>
+      </plugin>
+  </gazebo>
+<!-- adding imu sensor to the base link -->
+<sensor name='imu_sensor' type='imu'>
+  <always_on>1</always_on>
+  <update_rate>100</update_rate>
+  <visualize>1</visualize>
+  <topic>__default_topic__</topic>
+  <plugin name='imu_plugin' filename='libgazebo_ros_imu_sensor.so'>
+    <topicName>imu</topicName>
+    <bodyName>base_link</bodyName>
+    <updateRateHZ>10.0</updateRateHZ>
+    <gaussianNoise>0.0</gaussianNoise>
+    <xyzOffset>0 0 0</xyzOffset>
+    <rpyOffset>0 0 0</rpyOffset>
+    <frameName>base_link</frameName>
+    <initialOrientationAsReference>1</initialOrientationAsReference>
+  </plugin>
+  <pose>0 0 0 0 -0 0</pose>
+  <imu/>
+</sensor>
+
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.0142290244244959 -0.00460114334157358 -0.0157981758302379"
+        rpy="0 0 0" />
+      <mass
+        value="2.49007846050021" />
+      <inertia
+        ixx="0.00625744875770968"
+        ixy="-1.59495229293445E-11"
+        ixz="-2.61866110672266E-14"
+        iyy="0.00489492059233199"
+        iyz="7.8598187747419E-15"
+        izz="0.00969112831967179" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.7 0.7 0.9 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="FR1">
+    <inertial>
+      <origin
+        xyz="0.02612 0.00074305 0.061212"
+        rpy="0 0 0" />
+      <mass
+        value="0.35871" />
+      <inertia
+        ixx="0.00044328"
+        ixy="-1.6766E-06"
+        ixz="-9.9068E-06"
+        iyy="0.0003145"
+        iyz="-2.576E-06"
+        izz="0.00020521" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/FR1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/FR1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="FR1_"
+    type="revolute">
+    <origin
+      xyz="-0.16423 -0.26924 -0.015798"
+      rpy="-1.5708 -0.011393 3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="FR1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="FR2">
+    <inertial>
+      <origin
+        xyz="-0.050266902975153 -0.153493314443097 -0.0344873618774016"
+        rpy="0 0 0" />
+      <mass
+        value="0.421019079143915" />
+      <inertia
+        ixx="0.000852068112953311"
+        ixy="3.19242906120105E-06"
+        ixz="-6.61267552894505E-06"
+        iyy="0.000307852923020911"
+        iyz="-0.000225635506155653"
+        izz="0.00065120696734265" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/FR2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/FR2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="FR2_"
+    type="revolute">
+    <origin
+      xyz="0.018006 0 0.065"
+      rpy="-0.03726 0 -3.1416" />
+    <parent
+      link="FR1" />
+    <child
+      link="FR2" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="FR3">
+    <inertial>
+      <origin
+        xyz="0.0199426770443697 -0.136980779995663 0.102845524022024"
+        rpy="0 0 0" />
+      <mass
+        value="0.155935206674882" />
+      <inertia
+        ixx="0.0011552209842016"
+        ixy="-4.6955016006765E-08"
+        ixz="5.86784342700648E-08"
+        iyy="0.000710580255126011"
+        iyz="0.000554725888406585"
+        izz="0.000459413413981537" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/FR3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/FR3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="FR3_"
+    type="revolute">
+    <origin
+      xyz="0 -0.1703 -0.08624"
+      rpy="-1.7406 0 3.1416" />
+    <parent
+      link="FR2" />
+    <child
+      link="FR3" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="FL1">
+    <inertial>
+      <origin
+        xyz="0.0261197583641308 0.000743054536176027 0.0612123080676893"
+        rpy="0 0 0" />
+      <mass
+        value="0.358709196894451" />
+      <inertia
+        ixx="0.000443275444835995"
+        ixy="-1.67660322189517E-06"
+        ixz="-9.90676696217071E-06"
+        iyy="0.00031449685518571"
+        iyz="-2.57603919878303E-06"
+        izz="0.000205207659288229" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/FL1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/FL1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="FL1_"
+    type="revolute">
+    <origin
+      xyz="0.13577 -0.26924 -0.015798"
+      rpy="1.5708 0.011393 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="FL1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="FL2">
+    <inertial>
+      <origin
+        xyz="0.0502668928026236 -0.134428755267542 -0.0817222290827659"
+        rpy="0 0 0" />
+      <mass
+        value="0.421019703345601" />
+      <inertia
+        ixx="0.000852068973984816"
+        ixy="-5.13768905823175E-06"
+        ixz="5.24616551512842E-06"
+        iyy="0.000479532720674914"
+        iyz="-0.000283522017133229"
+        izz="0.000479528178086577" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/FL2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/FL2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="FL2_"
+    type="revolute">
+    <origin
+      xyz="0.018006 0 0.065"
+      rpy="-0.088438 0 0" />
+    <parent
+      link="FL1" />
+    <child
+      link="FL2" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="FL3">
+    <inertial>
+      <origin
+        xyz="0.0199426806750425 -0.0857712325916279 0.0854478393872552"
+        rpy="0 0 0" />
+      <mass
+        value="0.155935356866044" />
+      <inertia
+        ixx="0.0011552225827831"
+        ixy="-5.31526893077721E-08"
+        ixz="5.30688563552087E-08"
+        iyy="0.000584997668322056"
+        iyz="0.000568764371262009"
+        izz="0.000584997612289208" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/FL3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/FL3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="FL3_"
+    type="revolute">
+    <origin
+      xyz="0 -0.1703 -0.08624"
+      rpy="0.22102 0 0" />
+    <parent
+      link="FL2" />
+    <child
+      link="FL3" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="RR1">
+    <inertial>
+      <origin
+        xyz="0.0261197575907565 0.000743055572698423 0.0612123099905451"
+        rpy="0 0 0" />
+      <mass
+        value="0.358709202698084" />
+      <inertia
+        ixx="0.0004432754734531"
+        ixy="-1.67659525417638E-06"
+        ixz="-9.90676738149078E-06"
+        iyy="0.000314496875947001"
+        iyz="-2.57604485783384E-06"
+        izz="0.000205207645858766" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/RR1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/RR1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="RR1_"
+    type="revolute">
+    <origin
+      xyz="-0.16423 0.23276 -0.015798"
+      rpy="1.5708 0.041554 -3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="RR1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="RR2">
+    <inertial>
+      <origin
+        xyz="-0.06160606177425 -0.134428666689823 -0.0817221421337367"
+        rpy="0 0 0" />
+      <mass
+        value="0.421019010101391" />
+      <inertia
+        ixx="0.0008520681443469"
+        ixy="5.13787082493573E-06"
+        ixz="-5.2460513438586E-06"
+        iyy="0.00047953206951041"
+        iyz="-0.000283521501202046"
+        izz="0.000479527873883991" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/RR2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/RR2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="RR2_"
+    type="revolute">
+    <origin
+      xyz="0.0066673 0 0.065"
+      rpy="2.9579 0 -3.1416" />
+    <parent
+      link="RR1" />
+    <child
+      link="RR2" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="RR3">
+    <inertial>
+      <origin
+        xyz="0.0296328160267109 -0.085771230190593 0.0854478369707631"
+        rpy="0 0 0" />
+      <mass
+        value="0.155935360292347" />
+      <inertia
+        ixx="0.00115522258076454"
+        ixy="-5.31359222986219E-08"
+        ixz="5.30531767962972E-08"
+        iyy="0.000584997673259117"
+        iyz="0.00056876436927348"
+        izz="0.000584997605086957" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/RR3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/RR3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="RR3_"
+    type="revolute">
+    <origin
+      xyz="-0.001649 -0.1703 -0.08624"
+      rpy="-1.7898 0 3.1416" />
+    <parent
+      link="RR2" />
+    <child
+      link="RR3" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="RL1">
+    <inertial>
+      <origin
+        xyz="0.0261197595847295 0.000743054762768043 0.0612123104283538"
+        rpy="0 0 0" />
+      <mass
+        value="0.358709167139821" />
+      <inertia
+        ixx="0.000443275455711473"
+        ixy="-1.67659568857422E-06"
+        ixz="-9.90676773153059E-06"
+        iyy="0.0003144968595342"
+        iyz="-2.57604410511438E-06"
+        izz="0.000205207644055625" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/RL1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/RL1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="RL1_"
+    type="revolute">
+    <origin
+      xyz="0.13577 0.23276 -0.015798"
+      rpy="-1.5708 -0.041554 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="RL1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="RL2">
+    <inertial>
+      <origin
+        xyz="0.0603129184476369 -0.134428752967446 -0.0817222271885714"
+        rpy="0 0 0" />
+      <mass
+        value="0.421019719784907" />
+      <inertia
+        ixx="0.0008520689961023"
+        ixy="-5.13768963299562E-06"
+        ixz="5.24616237933414E-06"
+        iyy="0.000479532792814961"
+        iyz="-0.00028352204711343"
+        izz="0.000479528139349383" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/RL2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/RL2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="RL2_"
+    type="revolute">
+    <origin
+      xyz="0.0079604 0 0.065"
+      rpy="3.1416 0 0" />
+    <parent
+      link="RL1" />
+    <child
+      link="RL2" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+  <link
+    name="RL3">
+    <inertial>
+      <origin
+        xyz="0.0296482026107442 -0.0857712386297975 0.0854478464758481"
+        rpy="0 0 0" />
+      <mass
+        value="0.155935344543851" />
+      <inertia
+        ixx="0.00115522257770998"
+        ixy="-5.31952547069513E-08"
+        ixz="5.31121279487997E-08"
+        iyy="0.000584997666989995"
+        iyz="0.00056876437115729"
+        izz="0.000584997607963064" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/ace/Desktop/noetic_ws/src/ruff/meshes/RL3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.2 0.2 0.3 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="/home/noetic_ws/src/ruff/meshes/RL3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="RL3_"
+    type="revolute">
+    <origin
+      xyz="0.0003405 -0.1703 -0.08624"
+      rpy="0.035292 0 0" />
+    <parent
+      link="RL2" />
+    <child
+      link="RL3" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="3.14"
+      effort="55"
+      velocity="10" />
+  </joint>
+
+<!-- Transmission for the joints -->
+<transmission name="FL1_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="FL1_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+  <hardwareInterface>EffortJointInterface</hardwareInterface>
+</actuator>
+<joint name="FL1_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="FL2_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="FL2_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="FL2_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="FL3_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="FL3_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="FL3_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="FR1_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="FR1_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="FR1_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="FR2_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="FR2_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="FR2_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="FR3_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="FR3_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="FR3_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="RL1_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="RL1_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="RL1_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="RL2_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="RL2_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="RL2_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="RL3_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="RL3_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="RL3_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+
+<transmission name="RR1_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="RR1_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="RR1_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+
+<transmission name="RR2_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="RR2_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="RR2_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+<transmission name="RR3_trans">
+<type>transmission_interface/SimpleTransmission</type>
+<actuator name="RR3_motor">
+  <mechanicalReduction>1</mechanicalReduction>
+</actuator>
+<joint name="RR3_">
+  <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+</joint>
+</transmission>
+</robot>
