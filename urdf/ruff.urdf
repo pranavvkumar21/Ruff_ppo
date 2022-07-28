@@ -13,25 +13,7 @@
   </gazebo>
 <!-- adding imu sensor to the base link -->
 <!--IMU : joint , link , sensor  -->
- <joint name="IMU_joint" type="fixed">
-    <axis xyz="1 0 0"/>
-    <origin xyz="0 0 0"/>
-    <parent link="base_link"/>
-    <child link="imu_link"/>
-  </joint>
-<link name="imu_link">
 
-</link>
-<gazebo>
-  <plugin name="imu_plugin" filename="libgazebo_ros_imu.so">
-    <alwaysOn>true</alwaysOn>
-    <bodyName>imu_link</bodyName>
-    <topicName>/ruff/imu</topicName>
-    <serviceName>imu_service</serviceName>
-    <gaussianNoise>0.0</gaussianNoise>
-    <updateRate>20.0</updateRate>
-  </plugin>
-</gazebo>
   <link
     name="base_link">
     <inertial>
