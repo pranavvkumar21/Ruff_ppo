@@ -1,24 +1,12 @@
 #!/usr/bin/env python3
-import pybullet as p
-import time
-import pybullet_data
-import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.layers import Input,Dense
-import tensorflow_probability as tfp
-from model import *
-import math
-from os.path import exists
-import os
-import csv
-from datetime import datetime
-import random
+
+from model_ppo import *
+from ruff import *
+
 tfd = tfp.distributions
 
-NUM_EPISODES = 50_000
-STEPS_PER_EPISODE = 1_000
+NUM_EPISODES = 1_000
+STEPS_PER_EPISODE = 1_00
 timestep =1.0/240.0
 num_inputs = (60,)
 gamma= 0.992
@@ -26,90 +14,70 @@ lmbda = 0.95
 critic_discount = 0.5
 clip_range = 0.2
 entropy = 0.0025
-curDT = datetime.now()
-filename = "ruff_logfile"
-reward_log = 'reward_logfile.csv'
-discounted_sum = 0
 kc = 0
 kd = 1
 
+bullet_file = "../model/test_ppo.bullet"
+filename = "ruff_logfile"
+reward_log = 'reward_logfile.csv'
 
-def setup_world():
-    physicsClient = p.connect(p.DIRECT)##or p.DIRECT for no    n-graphical version
-    p.setAdditionalSearchPath(pybullet_data.getDataPath()) #optionally
-    p.setGravity(0,0,-10)
-    planeId = p.loadURDF("plane.urdf")
-    startPos = [0,0,0.4]
-    startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-    boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)
-    p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
-    return boxId
 
-def close_world():
-    p.disconnect()
+dummy_n = np.zeros((1, 1, 16))
+dummy_1 = np.zeros((1, 1, 1))
 
-def train(ru,actor,critic,discounted_sum,episode,step):
-    with tf.GradientTape(persistent = True) as tape:
-        state_curr = ru.get_state()
-        mu,sigma = actor(state_curr)
-        critic_value = critic(state_curr)
-        dist = tfd.Normal(loc=mu, scale=sigma)
-        actions = dist.sample(1)
-        actions = actions.numpy().tolist()[0][0]
+class buffer:
+    def __init__(self):
+        self.states = []
+        self.rewards = []
+        self.actions = []
+        self.logprobs = []
+        self.values = []
+        self.masks = []
+        self.advantages = None
+        self.returns = None
 
-        if np.isnan(actions).any():
-            print("exiting")
-            exit()
+    def append(self,state=None,action=None,reward=None,value=None,logprobs=None,masks=None):
+        self.states.append(state) if type(state)!=type(None) else 0
+        self.actions.append(action) if action !=None else 0
+        self.rewards.append(reward) if reward!=None else 0
+        self.values.append(value) if value!=None else print("hi")
+        self.logprobs.append(logprobs) if logprobs!=None else 0
+        self.masks.append(masks) if masks!=None else 0
+    def __len__(self):
+        print(len(self.masks))
+        return len(self.states)
 
-        pos_inc = actions[0:12]
-        pos_inc = [i*math.pi/90 for i in pos_inc]
-        freq = actions[12:]
-
-        ru.set_frequency(freq)
-        ru.phase_modulator()
-        ru.update_policy(actions)
-        log_probs = dist.log_prob(actions)
-        #print(log_probs.shape)
-        ru.update_target_pos(pos_inc)
-        ru.move()
-        p.stepSimulation()
-        #time.sleep(1./240.)
-        new_state = ru.get_state()
-
-        reward = ru.get_reward(episode,step)
-
-    return discounted_sum
 
 def check_log(filename):
-    files = os.listdir("./logs/")
+    files = os.listdir("../logs/")
     filecode = len(files)+1
     filename = '../logs/ '+filename + "_"+str(filecode)+ ".csv"
     return filename
 
-def run_episode():
-    state = []
-    rewards = []
-    actions = []
-    logprobs = []
+def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
+    for step in range(STEPS_PER_EPISODE):
+        state_curr = ru.get_state()
+        mu,sigma = actor([state_curr,dummy_n,dummy_1,dummy_1,dummy_1])
+        critic_value = critic(state_curr)
+        pos_inc, freq, actions, log_probs = ru.action_select(mu,sigma)
+        ru.set_frequency(freq)
+        ru.phase_modulator()
+        ru.update_policy(actions)
 
-    if exists("./test.bullet"):
-        p.restoreState(fileName="test.bullet")
-    kc = kc**kd
-    ru = ruff(id,kc)
-    for i in range(STEPS_PER_EPISODE):
-        if j==0 and i==1:
-            p.saveBullet("test.bullet")
+        ru.update_target_pos(pos_inc)
+        ru.move()
+        p.stepSimulation()
+        new_state = ru.get_state()
+        reward = ru.get_reward(episode,step)
+        mask = 0 if (step==STEPS_PER_EPISODE-1) else 1
+        rubuff.append(state_curr,actions,reward,critic_value,log_probs,mask)
 
-        episode_reward += ru.reward
-        counter +=1
-        if ru.is_end() :
-            break
+    critic_value = critic(new_state)
+    rubuff.append(value = critic_value)
 
 if __name__=="__main__":
     filename =check_log(filename)
-    id = setup_world()
     ru = ruff(id,kc)
-    is_nan = 0
     actor = actor_Model(num_inputs, 16)
     critic = critic_Model(num_inputs, 1)
     try:
@@ -121,24 +89,17 @@ if __name__=="__main__":
 
 
 
-    for j in range(NUM_EPISODES ):
+    for episode in range(NUM_EPISODES ):
+        rubuff = buffer()
+        reset_world(bullet_file)
+        ru = ruff(id,kc)
 
-        run_episode(actor,critic)
-        
-        data = [[j, ru.reward]]
-        print("episode: "+ str(j)+"  step: "+ str(i)+"  reward: "+ "{:.2f}".format(episode_reward)+" discounted sum: "+ "{:.2f}".format(discounted_sum))
-        act_json = actor.to_json()
-        cri_json = critic.to_json()
-        with open("../model/actor.json","w") as json_file:
-            json_file.write(act_json)
-        with open("../model/critic.json","w") as json_file:
-            json_file.write(cri_json)
-        actor.save_weights("../model/actor.h5")
-        critic.save_weights("../model/critic.h5")
-        print("model saved")
-        #exit()
-        with open(filename, 'a', newline="") as file:
-            csvwriter = csv.writer(file) # 2. create a csvwriter object
-            csvwriter.writerows(data) # 5. write the rest of the data
+        run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
+        returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
+
+        print(len(returns))
+        print(len(advantages))
+        save_model(actor,critic)
+
 
     close_world()

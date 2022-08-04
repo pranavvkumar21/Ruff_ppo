@@ -8,6 +8,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Input,Dense
 import tensorflow_probability as tfp
+import keras.backend as K
 from model import *
 import math
 from os.path import exists
@@ -216,8 +217,10 @@ def train(ru,actor,critic,discounted_sum,episode,step):
         critic_value = critic(state_curr)
         dist = tfd.Normal(loc=mu, scale=sigma)
         actions = dist.sample(1)
-        actions = actions.numpy().tolist()[0][0]
 
+        actions = actions.numpy().tolist()[0][0]
+        #print(actions)
+        print("action shape: "+ str(len(actions)))
         if np.isnan(actions).any():
             print("exiting")
             exit()
@@ -230,6 +233,8 @@ def train(ru,actor,critic,discounted_sum,episode,step):
         ru.phase_modulator()
         ru.update_policy(actions)
         log_probs = dist.log_prob(actions)
+        #print("logprob shape: "+ str(log_probs)))
+        #print(log_probs)
         ru.update_target_pos(pos_inc)
         ru.move()
         p.stepSimulation()
@@ -240,10 +245,12 @@ def train(ru,actor,critic,discounted_sum,episode,step):
 
         reward = ru.get_reward(episode,step)
         discounted_sum = reward + gamma*discounted_sum
-
+        #print(type(log_probs))
         delta = discounted_sum - critic_value
-        ru.actor_loss = -log_probs * delta
         ru.critic_loss = delta**2
+        ru.actor_loss = -K.mean(log_probs) * delta
+        print(ru.actor_loss)
+
 
     actor_grads = tape.gradient(ru.actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(ru.critic_loss, critic.trainable_variables)
@@ -294,7 +301,7 @@ if __name__=="__main__":
             if ru.is_end() :
 
                 break
-        data = [[j, ru.reward]]
+        data = [[j, discounted_sum]]
         print("episode: "+ str(j)+"  step: "+ str(i)+"  reward: "+ "{:.2f}".format(episode_reward)+" discounted sum: "+ "{:.2f}".format(discounted_sum))
         act_json = actor.to_json()
         cri_json = critic.to_json()
