@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python3
 import gfootball.env as football_env
 import numpy as np
 
@@ -269,18 +269,3 @@ while not target_reached and iters < max_iters:
     env.reset()
 
 env.close()
-Footer
-© 2022 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-You have no unread notifications

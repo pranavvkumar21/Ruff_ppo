@@ -1,3 +1,64 @@
+import pybullet as p
+import time
+import pybullet_data
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.layers import Input,Dense
+import tensorflow_probability as tfp
+from model_ppo import *
+import math
+from os.path import exists
+import os
+import csv
+from datetime import datetime
+import random
+
+
+NUM_EPISODES = 1_000
+STEPS_PER_EPISODE = 1_000
+timestep =1.0/240.0
+num_inputs = (60,)
+gamma= 0.992
+lmbda = 0.95
+critic_discount = 0.5
+clip_range = 0.2
+entropy = 0.0025
+curDT = datetime.now()
+filename = "ruff_logfile"
+reward_log = 'reward_logfile.csv'
+discounted_sum = 0
+kc = 0
+kd = 1
+dummy_n = np.zeros((1, 1, 16))
+dummy_1 = np.zeros((1, 1, 1))
+client_mode = p.DIRECT
+
+
+def setup_world():
+    physicsClient = p.connect(client_mode)##or p.DIRECT for no    n-graphical version
+    p.setAdditionalSearchPath(pybullet_data.getDataPath()) #optionally
+    p.setGravity(0,0,-10)
+    planeId = p.loadURDF("plane.urdf")
+    startPos = [0,0,0.4]
+    startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
+    boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)
+    p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
+    return boxId
+id  = setup_world()
+
+def reset_world(filepath):
+    if exists(filepath):
+        p.restoreState(fileName=filepath)
+
+def save_world(filepath):
+    p.saveBullet(filepath)
+
+def close_world():
+    p.disconnect()
+
+
 class ruff:
     def __init__(self, id,kc):
         self.id = id
@@ -103,6 +164,15 @@ class ruff:
     def update_policy(self,actions):
         self.prev_policy = self.policy
         self.policy = actions
+    def action_select(self,mu,sigma):
+        dist = tfd.Normal(loc=mu, scale=sigma)
+        actions = dist.sample(1)
+        actions = actions.numpy().tolist()[0][0]
+        pos_inc = actions[0:12]
+        pos_inc = [i*math.pi/90 for i in pos_inc]
+        freq = actions[12:]
+        log_probs = dist.log_prob(actions)
+        return pos_inc,freq, actions,log_probs
 
     def get_reward(self,episode,step):
         c1 = 1.2
