@@ -280,8 +280,6 @@ if __name__=="__main__":
     except:
         pass
 
-
-
     for j in range(NUM_EPISODES ):
 
 
@@ -313,7 +311,7 @@ if __name__=="__main__":
         actor.save_weights("../model/a2c_actor.h5")
         critic.save_weights("../model/a2c_critic.h5")
         print("model saved")
-        #exit()
+
         with open(filename, 'a', newline="") as file:
             csvwriter = csv.writer(file) # 2. create a csvwriter object
             csvwriter.writerows(data) # 5. write the rest of the data
