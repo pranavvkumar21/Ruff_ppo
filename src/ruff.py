@@ -34,6 +34,7 @@ kd = 1
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
 client_mode = p.DIRECT
+tfd = tfp.distributions
 
 
 def setup_world():

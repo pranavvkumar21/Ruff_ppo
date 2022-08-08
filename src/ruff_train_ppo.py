@@ -9,6 +9,7 @@ NUM_EPISODES = 1_000
 STEPS_PER_EPISODE = 1_00
 timestep =1.0/240.0
 num_inputs = (60,)
+n_actions = 16
 gamma= 0.992
 lmbda = 0.95
 critic_discount = 0.5
@@ -57,7 +58,10 @@ def check_log(filename):
 def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     for step in range(STEPS_PER_EPISODE):
         state_curr = ru.get_state()
-        mu,sigma = actor([state_curr,dummy_n,dummy_1,dummy_1,dummy_1])
+        output = actor([state_curr,dummy_n,dummy_1,dummy_1,dummy_1])
+        #print((output.shape))
+        (mu,sigma) = tf.split(output, num_or_size_splits=2, axis=1)
+        #print(mu.shape)
         critic_value = critic(state_curr)
         pos_inc, freq, actions, log_probs = ru.action_select(mu,sigma)
         ru.set_frequency(freq)
@@ -78,7 +82,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
 if __name__=="__main__":
     filename =check_log(filename)
     ru = ruff(id,kc)
-    actor = actor_Model(num_inputs, 16)
+    actor = actor_Model(num_inputs, n_actions)
     critic = critic_Model(num_inputs, 1)
     try:
         actor.load_weights("actor.h5")
@@ -96,7 +100,18 @@ if __name__=="__main__":
 
         run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
         returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
-
+        rubuff.states = np.array(rubuff.states,dtype= "float32")
+        rubuff.logprobs = np.array(rubuff.logprobs,dtype= "float32")
+        rubuff.states = np.reshape(rubuff.states, newshape=(-1, 60))
+        rubuff.values = np.array(rubuff.values,dtype= "float32")
+        #rubuff.logprobs = np.zeros((100,1,1))
+        #print(np.reshape(rubuff.actions, newshape=(-1, n_actions)))
+        print(rubuff.states.shape)
+        actor_loss = actor.fit(
+        [rubuff.states, rubuff.logprobs, advantages, np.reshape(rubuff.rewards, newshape=(-1, 1, 1)), rubuff.values[:-1]],
+        [(np.reshape(rubuff.actions, newshape=(-1, n_actions))),(np.reshape(rubuff.actions, newshape=(-1, n_actions)))], verbose=True, shuffle=True, epochs=8)
+        critic_loss = critic.fit([states], [np.reshape(returns, newshape=(-1, 1))], shuffle=True, epochs=8,
+                                    verbose=True)
         print(len(returns))
         print(len(advantages))
         save_model(actor,critic)
