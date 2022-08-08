@@ -104,9 +104,8 @@ if __name__=="__main__":
         rubuff.states = np.reshape(rubuff.states, newshape=(-1, 60))
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
-
-        print("episode: "+str(episode)+" returns: "+str(returns[-1]))
-        for i in ppo_epochs:
+        print("episode: "+str(episode)+" returns: "+str(returns[-1].numpy()[0,0]))
+        for i in range(ppo_epochs):
             ruff_train(actor,critic,rubuff,returns,advantages)
         save_model(actor,critic)
 
