@@ -2,12 +2,16 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Input,Dense
+import tensorflow_probability as tfp
 import numpy as np
+import keras.backend as K
 gamma= 0.992
 lmbda = 0.95
 critic_discount = 0.5
 clip_range = 0.2
 entropy = 0.0025
+tfd = tfp.distributions
+
 
 def get_advantages(values, masks, rewards):
     returns = []
@@ -22,7 +26,10 @@ def get_advantages(values, masks, rewards):
 
 def ppo_loss(oldpolicy_probs, advantages, rewards, values):
     def loss(y_true, y_pred):
-        mu,sigma = y_pred
+        #print("a")
+        print(y_pred.shape)
+        (mu,sigma) = tf.split(y_pred, num_or_size_splits=2, axis=1)
+        mu,sigma = y_pred.shape
         dist = tfd.Normal(loc=mu, scale=sigma)
         actions = dist.sample(1)
         actions = actions.numpy().tolist()[0][0]
@@ -34,6 +41,7 @@ def ppo_loss(oldpolicy_probs, advantages, rewards, values):
         critic_loss = K.mean(K.square(rewards - values))
         total_loss = critic_discount * critic_loss + actor_loss - entropy_beta * K.mean(
             -(newpolicy_probs * K.log(newpolicy_probs + 1e-10)))
+        total_loss = K.sum(y_pred)
         return total_loss
 
     return loss
@@ -50,9 +58,10 @@ def actor_Model(Input_shape,output_size):
     X = Dense(256, activation="relu", name="fc3")(X)
     mu = Dense(output_size, activation="tanh", name="mean")(X)
     sigma = Dense(output_size, activation="softplus", name="sigma")(X)
+    output = tf.keras.layers.Concatenate()([mu,sigma])
 
-    model = keras.Model(inputs=[inputs, oldpolicy_probs, advantages, rewards, values], outputs=[mu,sigma])
-    model.compile(optimizer=keras.optimizers.SGD(learning_rate=0.0003,clipnorm=1.0), loss=[ppo_loss(
+    model = keras.Model(inputs=[inputs, oldpolicy_probs, advantages, rewards, values], outputs=output)
+    model.compile(optimizer=keras.optimizers.SGD(learning_rate=0.00035,clipnorm=1.0), loss=[ppo_loss(
         oldpolicy_probs=oldpolicy_probs,
         advantages=advantages,
         rewards=rewards,
@@ -72,7 +81,7 @@ def critic_Model(Input_shape,output_size):
     X = Dense(output_size)(X)
 
     model = keras.Model(inputs=inputs, outputs=X)
-    model.compile(optimizer=keras.optimizers.SGD(learning_rate=0.0003,clipnorm=1.0), loss='mse')
+    model.compile(optimizer=keras.optimizers.SGD(learning_rate=0.00035,clipnorm=1.0), loss='mse')
 
     try:
         model.load_weights("../model/ppo_critic.h5")
