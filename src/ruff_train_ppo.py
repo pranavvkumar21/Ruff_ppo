@@ -7,6 +7,7 @@ tfd = tfp.distributions
 
 NUM_EPISODES = 1
 STEPS_PER_EPISODE = 1_00
+ppo_epochs = 10
 timestep =1.0/240.0
 num_inputs = (60,)
 n_actions = 16
@@ -22,8 +23,7 @@ bullet_file = "../model/test_ppo.bullet"
 filename = "ruff_logfile"
 reward_log = 'reward_logfile.csv'
 
-act_optimizer = keras.optimizers.SGD(learning_rate=0.0003,clipnorm=1.0)
-cri_optimizer = keras.optimizers.SGD(learning_rate=0.0003,clipnorm = 1.0)
+
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
 
@@ -104,12 +104,10 @@ if __name__=="__main__":
         rubuff.states = np.reshape(rubuff.states, newshape=(-1, 60))
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
-        print("episode completed")
-        ruff_train(actor,critic,rubuff,returns,advantages)
 
-
-        print(len(returns))
-        print(len(advantages))
+        print("episode: "+str(episode)+" returns: "+str(returns[-1]))
+        for i in ppo_epochs:
+            ruff_train(actor,critic,rubuff,returns,advantages)
         save_model(actor,critic)
 
 

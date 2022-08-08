@@ -20,6 +20,7 @@ tfd = tfp.distributions
 
 NUM_EPISODES = 50_000
 STEPS_PER_EPISODE = 1_000
+ppo_epochs = 10
 timestep =1.0/240.0
 num_inputs = (60,)
 layer1 = 256
