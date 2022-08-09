@@ -74,6 +74,8 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         reward = ru.get_reward(episode,step)
         mask = 0 if (step==STEPS_PER_EPISODE-1) else 1
         rubuff.append(state_curr,actions,reward,critic_value,log_probs,mask)
+        if ru.is_end():
+            break
 
     critic_value = critic(new_state)
     rubuff.append(value = critic_value)

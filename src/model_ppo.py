@@ -41,7 +41,7 @@ def ruff_train(actor,critic,rubuff,returns,advantages):
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
         actor_loss = -K.mean(K.minimum(p1, p2))
-        critic_loss = K.mean(K.square(returns - critic(rubuff.states)))
+        critic_loss = K.mean(K.square(rubuff.rewards - critic(rubuff.states)))
     actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
