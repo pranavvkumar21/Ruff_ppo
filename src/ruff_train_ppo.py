@@ -86,6 +86,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
 
     critic_value = critic(new_state)
     rubuff.append(value = critic_value)
+    return step
 
 if __name__=="__main__":
     filename =check_log(filename)
@@ -108,14 +109,14 @@ if __name__=="__main__":
         reset_world(bullet_file)
         ru = ruff(id,kc)
 
-        run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
+        step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
         returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
         rubuff.states = np.array(rubuff.states,dtype= "float32")
         rubuff.logprobs = np.array(rubuff.logprobs,dtype= "float32").reshape((-1,16))
         rubuff.states = np.reshape(rubuff.states, newshape=(-1, 60))
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
-        print("episode: "+str(episode)+" returns: "+str(returns[-1].numpy()[0,0]))
+        print("episode: "+str(episode)+" steps: "+str(step)+" returns: "+str(returns[-1].numpy()[0,0]))
         log_episode(log_file,episode,returns[-1].numpy()[0,0])
         for i in range(ppo_epochs):
             ruff_train(actor,critic,rubuff,returns,advantages)
