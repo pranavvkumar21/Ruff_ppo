@@ -5,7 +5,7 @@ from ruff import *
 
 tfd = tfp.distributions
 
-NUM_EPISODES = 5000
+NUM_EPISODES = 50_000
 STEPS_PER_EPISODE = 1_000
 ppo_epochs = 10
 timestep =1.0/240.0
@@ -20,7 +20,7 @@ kc = 0
 kd = 1
 
 bullet_file = "../model/test_ppo.bullet"
-filename = "ruff_logfile"
+log_file = "ppo_ruff_logfile.csv"
 reward_log = 'reward_logfile.csv'
 
 
@@ -49,6 +49,13 @@ class buffer:
         print(len(self.masks))
         return len(self.states)
 
+def log_episode(log_file,episode,reward,new = 0):
+    data = [[episode,reward]]
+    if new == 1:
+        os.remove(log_file)
+    with open(log_file, 'a', newline="") as file:
+        csvwriter = csv.writer(file) # 2. create a csvwriter object
+        csvwriter.writerows(data) # 5. write the rest of the data
 
 def check_log(filename):
     files = os.listdir("../logs/")
@@ -95,6 +102,8 @@ if __name__=="__main__":
 
 
     for episode in range(NUM_EPISODES ):
+        if episode == 0:
+            log_episode(log_file,"episode","returns",1)
         rubuff = buffer()
         reset_world(bullet_file)
         ru = ruff(id,kc)
@@ -107,6 +116,7 @@ if __name__=="__main__":
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
         print("episode: "+str(episode)+" returns: "+str(returns[-1].numpy()[0,0]))
+        log_episode(log_file,episode,returns[-1].numpy()[0,0])
         for i in range(ppo_epochs):
             ruff_train(actor,critic,rubuff,returns,advantages)
         save_model(actor,critic)
