@@ -66,6 +66,7 @@ def check_log(filename):
 def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     for step in range(STEPS_PER_EPISODE):
         state_curr = ru.get_state()
+
         mu,sigma = actor([state_curr])
 
         critic_value = critic(state_curr)
@@ -117,7 +118,11 @@ if __name__=="__main__":
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
         print("episode: "+str(episode)+" steps: "+str(step)+" returns: "+str(returns[-1].numpy()[0,0]))
-        log_episode(log_file,episode,returns[-1].numpy()[0,0])
+        episode_reward = np.sum(rubuff.rewards)
+        for i in range(len(rubuff.states)):
+            if np.max(rubuff.states[i])>1:
+                print(np.argmax(rubuff.states[i]))
+        log_episode(log_file,episode,episode_reward)
         for i in range(ppo_epochs):
             ruff_train(actor,critic,rubuff,returns,advantages)
         save_model(actor,critic)

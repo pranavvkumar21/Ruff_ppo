@@ -215,8 +215,8 @@ class ruff:
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
 
-        curriculum_reward = self.kc* (Balance + twist + foot_stance + foot_clear + foot_zvel1 + joint_constraints  + frequency_err + phase_err + foot_slip + policy_smooth)
-        self.reward = forward_velocity + lateral_velocity + angular_velocity + curriculum_reward
+        curriculum_reward = self.kc* ( + twist + foot_stance + foot_clear + foot_zvel1 + joint_constraints  + frequency_err + phase_err + foot_slip + policy_smooth)
+        self.reward = forward_velocity + lateral_velocity + angular_velocity+ Balance+ curriculum_reward
         return self.reward
 
     def is_end(self):
