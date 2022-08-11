@@ -105,8 +105,8 @@ class ruff:
         n_joints = [i for i in range(self.num_joints) ]
         self.joint_state = p.getJointStates(id,n_joints)
         for i in self.joint_state:
-            self.joint_position.append((i[0]/(2*math.pi)))
-            self.joint_velocity.append(i[1]/50.0)
+            self.joint_position.append((i[0]))
+            self.joint_velocity.append(i[1])
             self.joint_force.append(i[2])
             self.joint_torque.append(i[3]/50.0)
 
@@ -132,11 +132,16 @@ class ruff:
             freq_state = freq_state + [math.sin(self.rg_phase[i]),math.cos(self.rg_phase[i])]
         state = list(self.command)
         state = state + list([i/10 for i in self.base_linear_velocity])+list([i/10 for i in self.base_angular_velocity])
-        state = state + list(self.joint_position)+list(self.joint_velocity)
+        state = state + list(i/(2*math.pi) for i in self.joint_position)+list(i/10 for i in self.joint_velocity)
+
         state = state + list([i/(2*math.pi) for i in self.pos_error])
-        state = state + list(self.rg_freq)
+
+        state = state + list(i/(2*math.pi) for i in self.rg_freq)
+
         state = state + freq_state
+
         state = state + list([i/(2*math.pi) for i in self.base_orientation])
+
         state = np.array(state,dtype="float32")
         state = np.reshape(state, (1,-1))
         return state
