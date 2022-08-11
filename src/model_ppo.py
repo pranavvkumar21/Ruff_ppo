@@ -46,6 +46,7 @@ def ruff_train(actor,critic,rubuff,returns,advantages):
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
     cri_optimizer.apply_gradients(zip(critic_grads, critic.trainable_variables))
+    return actor_loss,critic_loss
 
 
 def actor_Model(Input_shape,output_size):
