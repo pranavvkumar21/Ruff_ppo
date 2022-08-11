@@ -41,33 +41,12 @@ def ruff_train(actor,critic,rubuff,returns,advantages):
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
         actor_loss = -K.mean(K.minimum(p1, p2))
-        critic_loss = K.mean(K.square(rubuff.rewards - critic(rubuff.states)))
+        critic_loss = K.mean(K.square(returns - critic(rubuff.states)))
     actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
     cri_optimizer.apply_gradients(zip(critic_grads, critic.trainable_variables))
 
-def ppo_loss(oldpolicy_probs, advantages, rewards, values):
-    def loss(y_true, y_pred):
-        #print("a")
-        print(y_pred.shape)
-        (mu,sigma) = tf.split(y_pred, num_or_size_splits=2, axis=1)
-        mu,sigma = y_pred.shape
-        dist = tfd.Normal(loc=mu, scale=sigma)
-        actions = dist.sample(1)
-        actions = actions.numpy().tolist()[0][0]
-        newpolicy_probs = dist.log_prob(actions)
-        ratio = K.exp(K.log(newpolicy_probs + 1e-10) - K.log(oldpolicy_probs + 1e-10))
-        p1 = ratio * advantages
-        p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
-        actor_loss = -K.mean(K.minimum(p1, p2))
-        critic_loss = K.mean(K.square(rewards - values))
-        total_loss = critic_discount * critic_loss + actor_loss - entropy_beta * K.mean(
-            -(newpolicy_probs * K.log(newpolicy_probs + 1e-10)))
-        total_loss = K.sum(y_pred)
-        return total_loss
-
-    return loss
 
 def actor_Model(Input_shape,output_size):
     inputs = Input(shape=(Input_shape))
