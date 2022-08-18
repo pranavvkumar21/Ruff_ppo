@@ -125,7 +125,7 @@ if __name__=="__main__":
 
         for i in range(ppo_epochs):
             act_loss,crit_loss=ruff_train(actor,critic,rubuff,returns,advantages)
-            #print(float(crit_loss.numpy()))
+
 
         log_episode(log_file,episode,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
         save_model(actor,critic)
