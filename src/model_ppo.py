@@ -40,8 +40,8 @@ def ruff_train(actor,critic,rubuff,returns,advantages):
         ratio = K.exp(new_log_probs - old_log_probs + 1e-10)
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
-        actor_loss = -K.mean(K.minimum(p1, p2))
-        critic_loss = K.mean(K.square(returns - critic(rubuff.states)))
+        actor_loss = -K.sum(K.minimum(p1, p2))
+        critic_loss = K.sum(K.square(returns - critic(rubuff.states)))
     actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
@@ -53,9 +53,8 @@ def actor_Model(Input_shape,output_size):
     inputs = Input(shape=(Input_shape))
     X = Dense(256, activation="relu", name="fc1")(inputs)
     X = Dense(256, activation="relu", name="fc2")(X)
-    X = Dense(256, activation="relu", name="fc3")(X)
     mu = Dense(output_size, activation="tanh", name="mean")(X)
-    sigma = Dense(output_size, activation="softplus", name="sigma")(X)
+    sigma = Dense(output_size, activation="sigmoid", name="sigma")(X)
     model = keras.Model(inputs=inputs, outputs=[mu,sigma])
     try:
         model.load_weights("../model/ppo_actor.h5")
@@ -67,7 +66,6 @@ def actor_Model(Input_shape,output_size):
 def critic_Model(Input_shape,output_size):
     inputs = Input(shape=(Input_shape))
     X = Dense(256, activation="relu")(inputs)
-    X = Dense(256, activation="relu")(X)
     X = Dense(256, activation="relu")(X)
     X = Dense(output_size)(X)
     model = keras.Model(inputs=inputs, outputs=X)
