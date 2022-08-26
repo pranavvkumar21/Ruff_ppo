@@ -61,10 +61,11 @@ def close_world():
 
 
 class ruff:
-    def __init__(self, id,kc):
+    def __init__(self, id,kf,ke):
         self.id = id
         self.command = [0.3 , 0.0000000001, 0.0000000001] #3 commands for motion
-        self.kc = kc
+        self.kf = kf
+        self.ke = ke
         self.num_joints = p.getNumJoints(self.id)
         self.joint_names = {}
         for i in range(self.num_joints):
@@ -219,9 +220,10 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
-
-        curriculum_reward = self.kc* ( + twist + foot_stance + foot_clear + foot_zvel1 + joint_constraints  + frequency_err + phase_err + foot_slip + policy_smooth)
-        self.reward = forward_velocity + lateral_velocity + angular_velocity+ Balance+ curriculum_reward
+        freq_reward = self.kf* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
+        efficiency_reward = self.ke*( twist + joint_constraints  + foot_slip + policy_smooth)
+        #print(efficiency_reward)
+        self.reward = forward_velocity + lateral_velocity + angular_velocity+ Balance+ freq_reward + efficiency_reward
         return self.reward
 
     def is_end(self):

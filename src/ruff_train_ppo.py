@@ -16,7 +16,8 @@ lmbda = 0.95
 critic_discount = 0.5
 clip_range = 0.2
 entropy = 0.0025
-kc = 0
+kf = 0
+ke = 1
 kd = 1
 
 bullet_file = "../model/test_ppo.bullet"
@@ -91,7 +92,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
 
 if __name__=="__main__":
     filename =check_log(filename)
-    ru = ruff(id,kc)
+    ru = ruff(id,kf,ke)
     actor = actor_Model(num_inputs, n_actions)
     critic = critic_Model(num_inputs, 1)
     try:
@@ -108,7 +109,7 @@ if __name__=="__main__":
             log_episode(log_file,"episode","act_loss","crit_loss","eps_reward","step",1)
         rubuff = buffer()
         reset_world(bullet_file)
-        ru = ruff(id,kc)
+        ru = ruff(id,kf,ke)
 
         step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
         returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
@@ -118,7 +119,7 @@ if __name__=="__main__":
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
         episode_reward = np.sum(rubuff.rewards)
-        print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+episode_reward))
+        print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         for i in range(len(rubuff.states)):
             if np.max(rubuff.states[i])>1:
                 print(np.argmax(rubuff.states[i]))
