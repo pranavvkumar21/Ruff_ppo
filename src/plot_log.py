@@ -13,8 +13,8 @@ df = pd.read_csv(log_file)
 def animate(i):
     df = pd.read_csv(log_file)
     xar = df["episode"].values
-    yar = df["crit_loss"].values
-    ema10 = EMAIndicator(close=df["crit_loss"],window=100)
+    yar = df["act_loss"].values
+    ema10 = EMAIndicator(close=df["act_loss"],window=100)
     ema = ema10.ema_indicator().values
     ax1.clear()
     ax1.plot(xar,yar)
