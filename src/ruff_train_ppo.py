@@ -5,7 +5,7 @@ from ruff import *
 
 tfd = tfp.distributions
 
-NUM_EPISODES = 50_000
+NUM_EPISODES = 5_000_000
 STEPS_PER_EPISODE = 1000
 ppo_epochs = 10
 timestep =1.0/240.0
@@ -17,13 +17,13 @@ critic_discount = 0.5
 clip_range = 0.2
 entropy = 0.0025
 kf = 0
-ke = 1
+ke = 0
 kd = 1
 
 bullet_file = "../model/test_ppo.bullet"
 log_file = "ppo_ruff_logfile.csv"
 reward_log = 'reward_logfile.csv'
-
+graph_count = 0
 
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
@@ -81,6 +81,9 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         p.stepSimulation()
         new_state = ru.get_state()
         reward = ru.get_reward(episode,step)
+        if ru.is_end():
+            reward = -1000
+            print("1212")
         mask = 0 if (step==STEPS_PER_EPISODE-1) else 1
         rubuff.append(state_curr,actions,reward,critic_value,log_probs,mask)
         if ru.is_end():
@@ -120,15 +123,14 @@ if __name__=="__main__":
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
         episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
-        for i in range(len(rubuff.states)):
-            if np.max(rubuff.states[i])>1:
-                print(np.argmax(rubuff.states[i]))
+        #for i in range(len(rubuff.states)):
+        #    if np.max(rubuff.states[i])>1:
+        #        print(np.argmax(rubuff.states[i]))
 
         for i in range(ppo_epochs):
             act_loss,crit_loss=ruff_train(actor,critic,rubuff,returns,advantages)
-
-
-        log_episode(log_file,episode,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
+            log_episode(log_file,graph_count,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
+            graph_count+=1
         save_model(actor,critic)
 
 
