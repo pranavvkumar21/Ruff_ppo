@@ -4,6 +4,8 @@ from tensorflow.keras import layers
 from tensorflow.keras.layers import Input,Dense
 import tensorflow_probability as tfp
 import numpy as np
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 import keras.backend as K
 gamma= 0.992
 lmbda = 0.95
@@ -27,7 +29,7 @@ def get_advantages(values, masks, rewards):
     #print(np.mean(adv))
     #print(np.std(adv))
     adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-10)
-    #print(adv.shape)
+    #print(returns)
     return returns, adv
 
 def ruff_train(actor,critic,rubuff,returns,advantages):
@@ -36,12 +38,12 @@ def ruff_train(actor,critic,rubuff,returns,advantages):
         mu,sigma = actor(rubuff.states)
 
         dist = tfd.Normal(loc=mu, scale=sigma)
-        new_log_probs = log_probs = dist.log_prob(rubuff.actions)
-        ratio = K.exp(new_log_probs - old_log_probs + 1e-10)
+        new_log_probs = dist.log_prob(rubuff.actions)
+        ratio = K.exp(new_log_probs - old_log_probs)
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
-        actor_loss = -K.sum(K.minimum(p1, p2))
-        critic_loss = K.sum(K.square(returns - critic(rubuff.states)))
+        actor_loss = -K.mean(K.minimum(p1, p2))
+        critic_loss = K.mean(K.abs(returns - critic(rubuff.states)))
     actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
@@ -54,7 +56,7 @@ def actor_Model(Input_shape,output_size):
     X = Dense(256, activation="relu", name="fc1")(inputs)
     X = Dense(256, activation="relu", name="fc2")(X)
     mu = Dense(output_size, activation="tanh", name="mean")(X)
-    sigma = Dense(output_size, activation="sigmoid", name="sigma")(X)
+    sigma = Dense(output_size, activation="softplus", name="sigma")(X)
     model = keras.Model(inputs=inputs, outputs=[mu,sigma])
     try:
         model.load_weights("../model/ppo_actor.h5")
