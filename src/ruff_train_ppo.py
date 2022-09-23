@@ -36,16 +36,18 @@ class buffer:
         self.logprobs = []
         self.values = []
         self.masks = []
-        self.advantages = None
-        self.returns = None
+        self.advantages = []
+        self.returns = []
 
-    def append(self,state=None,action=None,reward=None,value=None,logprobs=None,masks=None):
+    def append(self,state=None,action=None,reward=None,value=None,logprobs=None,ret=None,adv=None,masks=None):
         self.states.append(state) if type(state)!=type(None) else 0
         self.actions.append(action) if action !=None else 0
         self.rewards.append(reward) if reward!=None else 0
         self.values.append(value) if value!=None else print("hi")
         self.logprobs.append(logprobs) if logprobs!=None else 0
         self.masks.append(masks) if masks!=None else 0
+        self.advantages.append(adv) if masks!=None else 0
+        self.returns.append(ret) if masks!=None else 0
     def __len__(self):
         print(len(self.masks))
         return len(self.states)
@@ -81,11 +83,13 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         p.stepSimulation()
         new_state = ru.get_state()
         reward = ru.get_reward(episode,step)
+        ret = reward + gamma*critic(new_state)
+        adv = ret - critic_value
         if ru.is_end():
             reward = -1000
             print("1212")
         mask = 0 if (step==STEPS_PER_EPISODE-1) else 1
-        rubuff.append(state_curr,actions,reward,critic_value,log_probs,mask)
+        rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv,mask)
         if ru.is_end():
             break
 
@@ -115,20 +119,23 @@ if __name__=="__main__":
         ru = ruff(id,kf,ke)
 
         step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
-        returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
+        #returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
         rubuff.states = np.array(rubuff.states,dtype= "float32")
         rubuff.logprobs = np.array(rubuff.logprobs,dtype= "float32").reshape((-1,16))
         rubuff.states = np.reshape(rubuff.states, newshape=(-1, 60))
         rubuff.values = np.array(rubuff.values,dtype= "float32")
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
+        rubuff.advantages = np.array(rubuff.advantages,dtype= "float32").reshape((-1,1))
+        rubuff.returns = np.array(rubuff.returns,dtype= "float32").reshape((-1,1))
         episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         #for i in range(len(rubuff.states)):
         #    if np.max(rubuff.states[i])>1:
         #        print(np.argmax(rubuff.states[i]))
+        #print(rubuff.returns.shape)
 
         for i in range(ppo_epochs):
-            act_loss,crit_loss=ruff_train(actor,critic,rubuff,returns,advantages)
+            act_loss,crit_loss=ruff_train(actor,critic,rubuff,rubuff.returns,rubuff.advantages)
             log_episode(log_file,graph_count,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
             graph_count+=1
         save_model(actor,critic)

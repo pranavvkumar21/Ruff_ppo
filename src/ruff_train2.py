@@ -18,7 +18,7 @@ from datetime import datetime
 import random
 tfd = tfp.distributions
 
-NUM_EPISODES = 50_000
+NUM_EPISODES = 1
 STEPS_PER_EPISODE = 1_000
 ppo_epochs = 10
 timestep =1.0/240.0

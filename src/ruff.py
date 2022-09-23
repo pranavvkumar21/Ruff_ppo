@@ -16,7 +16,7 @@ from datetime import datetime
 import random
 
 
-NUM_EPISODES = 1_000
+NUM_EPISODES = 100_000
 STEPS_PER_EPISODE = 1_000
 timestep =1.0/240.0
 num_inputs = (60,)
@@ -64,8 +64,8 @@ class ruff:
     def __init__(self, id,kf,ke):
         self.id = id
         self.command = [0.3 , 0.0000000001, 0.0000000001] #3 commands for motion
-        self.kf = kf
-        self.ke = ke
+        self.kf = 0
+        self.ke = 0
         self.num_joints = p.getNumJoints(self.id)
         self.joint_names = {}
         for i in range(self.num_joints):
