@@ -7,6 +7,7 @@ tfd = tfp.distributions
 
 NUM_EPISODES = 5_000_000
 STEPS_PER_EPISODE = 1000
+max_buffer = 2_000
 ppo_epochs = 10
 timestep =1.0/240.0
 num_inputs = (60,)
@@ -29,7 +30,7 @@ dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
 
 class buffer:
-    def __init__(self):
+    def __init__(self,max_len):
         self.states = []
         self.rewards = []
         self.actions = []
@@ -38,6 +39,7 @@ class buffer:
         self.masks = []
         self.advantages = []
         self.returns = []
+        self.max_len = max_len
 
     def append(self,state=None,action=None,reward=None,value=None,logprobs=None,ret=None,adv=None,masks=None):
         self.states.append(state) if type(state)!=type(None) else 0
@@ -48,6 +50,17 @@ class buffer:
         self.masks.append(masks) if masks!=None else 0
         self.advantages.append(adv) if masks!=None else 0
         self.returns.append(ret) if masks!=None else 0
+
+        self.states = self.states[-self.max_len:]
+        self.actions = self.actions[-self.max_len:]
+        self.rewards = self.rewards[-self.max_len:]
+        self.values = self.values[-self.max_len:]
+        self.logprobs = self.logprobs[-self.max_len:]
+        self.masks = self.masks[-self.max_len:]
+        self.advantages = self.advantages[-self.max_len:]
+        self.returns = self.returns[-self.max_len:]
+
+
     def __len__(self):
         print(len(self.masks))
         return len(self.states)
@@ -92,9 +105,9 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv,mask)
         if ru.is_end():
             break
-
-    critic_value = critic(new_state)
-    rubuff.append(value = critic_value)
+    #print(len(rubuff.states))
+    #critic_value = critic(new_state)
+    #rubuff.append(value = critic_value)
     return step
 
 if __name__=="__main__":
@@ -110,16 +123,18 @@ if __name__=="__main__":
         pass
 
 
-
+    rubuff = buffer(max_buffer)
     for episode in range(NUM_EPISODES ):
         if episode == 0:
             log_episode(log_file,"episode","act_loss","crit_loss","eps_reward","step",1)
-        rubuff = buffer()
+
         reset_world(bullet_file)
         ru = ruff(id,kf,ke)
 
         step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
         #returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
+        print(len(rubuff.logprobs))
+
         rubuff.states = np.array(rubuff.states,dtype= "float32")
         rubuff.logprobs = np.array(rubuff.logprobs,dtype= "float32").reshape((-1,16))
         rubuff.states = np.reshape(rubuff.states, newshape=(-1, 60))
@@ -127,12 +142,14 @@ if __name__=="__main__":
         rubuff.actions = np.array(rubuff.actions,dtype= "float32").reshape((-1,16))
         rubuff.advantages = np.array(rubuff.advantages,dtype= "float32").reshape((-1,1))
         rubuff.returns = np.array(rubuff.returns,dtype= "float32").reshape((-1,1))
+
         episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         #for i in range(len(rubuff.states)):
         #    if np.max(rubuff.states[i])>1:
         #        print(np.argmax(rubuff.states[i]))
         #print(rubuff.returns.shape)
+
 
         for i in range(ppo_epochs):
             act_loss,crit_loss=ruff_train(actor,critic,rubuff,rubuff.returns,rubuff.advantages)

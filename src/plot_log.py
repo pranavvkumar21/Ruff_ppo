@@ -16,11 +16,11 @@ def animate(i):
     yar_act = df["act_loss"].values
     yar_crit = df["crit_loss"].values
     yar_eps = df["eps_reward"].values
-    ema10_a = EMAIndicator(close=df["act_loss"],window=100)
+    ema10_a = EMAIndicator(close=df["act_loss"],window=300)
     ema_a = ema10_a.ema_indicator().values
-    ema10_c = EMAIndicator(close=df["crit_loss"],window=100)
+    ema10_c = EMAIndicator(close=df["crit_loss"],window=300)
     ema_c = ema10_c.ema_indicator().values
-    ema10_e = EMAIndicator(close=df["eps_reward"],window=100)
+    ema10_e = EMAIndicator(close=df["eps_reward"],window=1000)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
     ax1.plot(xar,yar_eps)
