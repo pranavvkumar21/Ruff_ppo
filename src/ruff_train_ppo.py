@@ -5,9 +5,10 @@ from ruff import *
 
 tfd = tfp.distributions
 
-NUM_EPISODES = 5_000_000
+NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
-max_buffer = 10_000
+max_buffer = 30_000
+MINIBATCH_SIZE = 3000
 ppo_epochs = 10
 timestep =1.0/240.0
 num_inputs = (60,)
@@ -30,39 +31,51 @@ dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
 
 class buffer:
-    def __init__(self,max_len):
-        self.states_ = []
-        self.rewards_ = []
-        self.actions_ = []
-        self.logprobs_ = []
-        self.values_ = []
-        self.masks_ = []
-        self.advantages_ = []
-        self.returns_ = []
+    def __init__(self,max_len,batch_size):
+        self.states = np.empty((0,60))
+        self.rewards = np.empty((0,1))
+        self.actions = np.empty((0,16))
+        self.logprobs = np.empty((0,16))
+        self.values = np.empty((0,1))
+        self.advantages = np.empty((0,1))
+        self.returns = np.empty((0,1))
         self.max_len = max_len
+        self.keys = [i for i in range(max_len)]
+        self.batch_size = batch_size
 
-    def append(self,state=None,action=None,reward=None,value=None,logprobs=None,ret=None,adv=None,masks=None):
-        self.states_.append(state) if type(state)!=type(None) else 0
-        self.actions_.append(action) if action !=None else 0
-        self.rewards_.append(reward) if reward!=None else 0
-        self.values_.append(value) if value!=None else print("hi")
-        self.logprobs_.append(logprobs) if logprobs!=None else 0
-        self.masks_.append(masks) if masks!=None else 0
-        self.advantages_.append(adv) if masks!=None else 0
-        self.returns_.append(ret) if masks!=None else 0
+    def append(self,state=None,action=None,reward=None,value=None,logprobs=None,ret=None,adv=None):
 
-        self.states_ = self.states_[-self.max_len:]
-        self.actions_ = self.actions_[-self.max_len:]
-        self.rewards_ = self.rewards_[-self.max_len:]
-        self.values_ = self.values_[-self.max_len:]
-        self.logprobs_ = self.logprobs_[-self.max_len:]
-        self.masks_ = self.masks_[-self.max_len:]
-        self.advantages_ = self.advantages_[-self.max_len:]
-        self.returns_ = self.returns_[-self.max_len:]
+        self.states = np.concatenate([self.states,state]) if type(state)!=type(None) else 0
+        self.actions = np.concatenate([self.actions,np.array(action).reshape((1,16))]) if action !=None else 0
+        self.rewards = np.concatenate([self.rewards,np.array(reward).reshape((1,1))]) if reward!=None else 0
+        self.values = np.concatenate([self.values,value]) if value!=None else 0
+        self.logprobs = np.concatenate([self.logprobs,logprobs]) if logprobs!=None else 0
+        self.advantages = np.concatenate([self.advantages,adv]) if adv!=None else 0
+        self.returns = np.concatenate([self.returns,ret]) if ret!=None else 0
+
+        self.states = self.states[-self.max_len:]
+        self.actions = self.actions[-self.max_len:]
+        self.rewards = self.rewards[-self.max_len:]
+        self.values = self.values[-self.max_len:]
+        self.logprobs = self.logprobs[-self.max_len:]
+        self.advantages = self.advantages[-self.max_len:]
+        self.returns = self.returns[-self.max_len:]
+    def batch_gen(self):
+        np.random.shuffle(self.keys)
+        batch = np.array_split(self.keys,self.max_len/self.batch_size)
+        for i in batch:
+            state = np.take(self.states,i,0)
+            action = np.take(self.actions,i,0)
+            log_prob = np.take(self.logprobs,i,0)
+            returns = np.take(self.returns,i,0)
+            advantages = np.take(self.advantages,i,0)
+            yield state,log_prob,action,returns,advantages
+
+
 
 
     def __len__(self):
-        print(len(self.masks))
+        #print(len(self.masks))
         return len(self.states)
 
 def log_episode(log_file,episode,act_loss,critic_loss,episode_reward,step,new = 0):
@@ -100,9 +113,8 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         adv = ret - critic_value
         if ru.is_end():
             reward = -1000
-            #print("1212")
-        mask = 0 if (step==STEPS_PER_EPISODE-1) else 1
-        rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv,mask)
+
+        rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv)
         if ru.is_end():
             break
 
@@ -121,7 +133,7 @@ if __name__=="__main__":
         pass
 
 
-    rubuff = buffer(max_buffer)
+    rubuff = buffer(max_buffer,MINIBATCH_SIZE)
     for episode in range(NUM_EPISODES ):
         if episode == 0:
             log_episode(log_file,"episode","act_loss","crit_loss","eps_reward","step",1)
@@ -133,27 +145,21 @@ if __name__=="__main__":
         #returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
         #rint(len(rubuff.logprobs))
 
-        rubuff.states = np.array(rubuff.states_,dtype= "float32")
-        rubuff.logprobs = np.array(rubuff.logprobs_,dtype= "float32").reshape((-1,16))
-        rubuff.states = np.reshape(rubuff.states_, newshape=(-1, 60))
-        rubuff.values = np.array(rubuff.values_,dtype= "float32")
-        rubuff.actions = np.array(rubuff.actions_,dtype= "float32").reshape((-1,16))
-        rubuff.advantages = np.array(rubuff.advantages_,dtype= "float32").reshape((-1,1))
-        rubuff.returns = np.array(rubuff.returns_,dtype= "float32").reshape((-1,1))
 
-        episode_reward = np.sum(rubuff.rewards_[-step:])
+        episode_reward = np.sum(rubuff.rewards[-step:])
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
-        #for i in range(len(rubuff.states)):
-        #    if np.max(rubuff.states[i])>1:
-        #        print(np.argmax(rubuff.states[i]))
-        #print(rubuff.returns.shape)
 
+        if len(rubuff)==max_buffer:
+            for i in range(ppo_epochs):
 
-        for i in range(ppo_epochs):
-            act_loss,crit_loss=ruff_train(actor,critic,rubuff,rubuff.returns,rubuff.advantages)
-            #log_episode(log_file,graph_count,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
-            graph_count+=1
-        save_model(actor,critic)
+                for states,logprobs,actions,returns,advantages in rubuff.batch_gen():
+
+                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages)
+                #log_episode(log_file,graph_count,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
+                graph_count+=1
+            save_model(actor,critic)
+        else:
+            print("buffer size = "+str(len(rubuff)))
 
 
     close_world()
