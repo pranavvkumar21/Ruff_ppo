@@ -28,18 +28,18 @@ def get_advantages(values, masks, rewards):
     adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-10)
     return returns, adv
 
-def ruff_train(actor,critic,rubuff,returns,advantages):
+def ruff_train(actor,critic,states,logprobs,actions,returns,advantages):
     with tf.GradientTape(persistent = True) as tape:
-        old_log_probs = rubuff.logprobs
-        mu,sigma = actor(rubuff.states)
+        old_log_probs = logprobs
+        mu,sigma = actor(states)
 
         dist = tfd.Normal(loc=mu, scale=sigma)
-        new_log_probs = dist.log_prob(rubuff.actions)
+        new_log_probs = dist.log_prob(actions)
         ratio = K.exp(new_log_probs - old_log_probs)
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
         actor_loss = -K.mean(K.minimum(p1, p2),axis=0)
-        critic_loss = K.mean(K.abs(returns - critic(rubuff.states)),axis=0)
+        critic_loss = K.mean(K.abs(returns - critic(states)),axis=0)
     actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
