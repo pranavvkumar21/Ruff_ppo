@@ -33,7 +33,7 @@ kc = 0
 kd = 1
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
-client_mode = p.DIRECT
+client_mode = p.GUI
 tfd = tfp.distributions
 
 
@@ -79,7 +79,7 @@ class ruff:
         self.get_link_vel()
         self.policy = [0]*16
         self.prev_policy = self.policy
-        self.target_pos = [0.0]*12
+        self.target_pos = self.joint_position.copy()
         self.pos_error = [(i-j)/(2*math.pi) for i,j in zip(self.target_pos,self.joint_position)]  #12 positional error
         self.rg_freq = [0,0,0,0]         #4 rg frequency 1 for each limb
         self.rg_phase = [0,0,0,0]        #8 rg phase 2 for each limb
@@ -220,15 +220,16 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance
+        basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance+twist
         freq_reward = self.kf* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = self.ke*( twist + joint_constraints  + foot_slip + policy_smooth)
+        efficiency_reward = 1*( joint_constraints  + foot_slip + policy_smooth)
 
         self.reward = basic_reward+ freq_reward + efficiency_reward
         if self.reward<0:
-            print(basic_reward)
-            print(freq_reward)
-            print(efficiency_reward)
+            #print(basic_reward)
+            #print(freq_reward)
+            #print(efficiency_reward)
+            pass
         return self.reward
 
     def is_end(self):
