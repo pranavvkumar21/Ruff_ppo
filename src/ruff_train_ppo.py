@@ -150,7 +150,7 @@ if __name__=="__main__":
 
 
         for i in range(ppo_epochs):
-            act_loss,crit_loss=ruff_train(actor,critic,states,returns,advantages)
+            act_loss,crit_loss=ruff_train(actor,critic,rubuff,rubuff.returns,rubuff.advantages)
             #log_episode(log_file,graph_count,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
             graph_count+=1
         save_model(actor,critic)
