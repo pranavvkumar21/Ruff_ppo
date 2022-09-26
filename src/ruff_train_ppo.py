@@ -78,8 +78,8 @@ class buffer:
         #print(len(self.masks))
         return len(self.states)
 
-def log_episode(log_file,episode,act_loss,critic_loss,episode_reward,step,new = 0):
-    data = [[episode,act_loss,critic_loss,episode_reward,step]]
+def log_episode(log_file,episode,episode_reward,step,new = 0):
+    data = [[episode,episode_reward,step]]
     if new == 1:
         os.remove(log_file)
     with open(log_file, 'a', newline="") as file:
@@ -136,7 +136,7 @@ if __name__=="__main__":
     rubuff = buffer(max_buffer,MINIBATCH_SIZE)
     for episode in range(NUM_EPISODES ):
         if episode == 0:
-            log_episode(log_file,"episode","act_loss","crit_loss","eps_reward","step",1)
+            log_episode(log_file,"episode","avg_eps_reward","step",1)
 
         reset_world(bullet_file)
         ru = ruff(id,kf,ke)
@@ -155,11 +155,11 @@ if __name__=="__main__":
                 for states,logprobs,actions,returns,advantages in rubuff.batch_gen():
 
                     act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages)
-                #log_episode(log_file,graph_count,float(act_loss.numpy()),float(crit_loss.numpy()),episode_reward,step)
+
                 graph_count+=1
             save_model(actor,critic)
         else:
             print("buffer size = "+str(len(rubuff)))
-
+        log_episode(log_file,episode,episode_reward/step,step)
 
     close_world()
