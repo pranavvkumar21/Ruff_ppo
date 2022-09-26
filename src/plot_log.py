@@ -13,18 +13,13 @@ df = pd.read_csv(log_file)
 def animate(i):
     df = pd.read_csv(log_file)
     xar = df["episode"].values
-    yar_act = df["act_loss"].values
-    yar_crit = df["crit_loss"].values
-    yar_eps = df["eps_reward"].values
-    ema10_a = EMAIndicator(close=df["act_loss"],window=300)
-    ema_a = ema10_a.ema_indicator().values
-    ema10_c = EMAIndicator(close=df["crit_loss"],window=300)
-    ema_c = ema10_c.ema_indicator().values
-    ema10_e = EMAIndicator(close=df["eps_reward"],window=1000)
+    yar_eps = df["avg_eps_reward"].values
+    ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=100)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
     ax1.plot(xar,yar_eps)
     ax1.plot(xar,ema_e)
+    #plt.ylim(-5,5)
 ani = animation.FuncAnimation(fig, animate, interval=1000)
 plt.show()
 print(df.keys())

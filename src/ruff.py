@@ -78,7 +78,7 @@ class ruff:
         self.get_height()
         self.get_link_vel()
         self.policy = [0]*16
-        self.prev_policy = self.policy
+        self.prev_policy = self.policy.copy()
         self.target_pos = self.joint_position.copy()
         self.pos_error = [(i-j)/(2*math.pi) for i,j in zip(self.target_pos,self.joint_position)]  #12 positional error
         self.rg_freq = [0,0,0,0]         #4 rg frequency 1 for each limb
@@ -169,7 +169,7 @@ class ruff:
         self.rg_freq = freq
 
     def update_policy(self,actions):
-        self.prev_policy = self.policy
+        self.prev_policy = self.policy.copy()
         self.policy = actions
     def action_select(self,mu,sigma):
         dist = tfd.Normal(loc=mu, scale=sigma)
