@@ -63,7 +63,7 @@ def close_world():
 class ruff:
     def __init__(self, id,kf,ke):
         self.id = id
-        self.command = [0.3 , 0.0000000001, 0.0000000001] #3 commands for motion
+        self.command = [0.3 , 1e-10, 1e-10] #3 commands for motion
         self.kf = 0
         self.ke = 0
         self.num_joints = p.getNumJoints(self.id)
@@ -185,7 +185,7 @@ class ruff:
         c1 = 1.2
         c4 = 7.5
 
-        forward_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/abs(self.command[0]))
+        forward_velocity = 5*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/abs(self.command[0]))
         lateral_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[1]-self.command[1])**2)/abs(self.command[1]))
         angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/abs(self.command[2]))
         Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/abs(self.command[0])) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/abs(self.command[0])))
@@ -220,9 +220,9 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance+twist
-        freq_reward = self.kf* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = 1*( joint_constraints  + foot_slip + policy_smooth)
+        basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance
+        freq_reward = 0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
+        efficiency_reward = 0.3*( joint_constraints  + foot_slip + policy_smooth+twist)
 
         self.reward = basic_reward+ freq_reward + efficiency_reward
         if self.reward<0:

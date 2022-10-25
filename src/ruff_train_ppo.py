@@ -7,9 +7,9 @@ tfd = tfp.distributions
 
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
-max_buffer = 30_000
-MINIBATCH_SIZE = 3000
-ppo_epochs = 10
+max_buffer = 12_000
+MINIBATCH_SIZE = 4_000
+ppo_epochs = 3
 timestep =1.0/240.0
 num_inputs = (60,)
 n_actions = 16
@@ -59,6 +59,7 @@ class buffer:
         self.values = self.values[-self.max_len:]
         self.logprobs = self.logprobs[-self.max_len:]
         self.advantages = self.advantages[-self.max_len:]
+        self.adv = (self.advantages-np.mean(self.advantages))/(np.std(self.advantages)+1e-10)
         self.returns = self.returns[-self.max_len:]
     def batch_gen(self):
         np.random.shuffle(self.keys)
@@ -68,8 +69,9 @@ class buffer:
             action = np.take(self.actions,i,0)
             log_prob = np.take(self.logprobs,i,0)
             returns = np.take(self.returns,i,0)
-            advantages = np.take(self.advantages,i,0)
-            yield state,log_prob,action,returns,advantages
+            rewards = np.take(self.rewards,i,0)
+            advantages = np.take(self.adv,i,0)
+            yield state,log_prob,action,returns,advantages,rewards
 
 
 
@@ -112,7 +114,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         ret = reward + gamma*critic(new_state)
         adv = ret - critic_value
         if ru.is_end():
-            reward = -1000
+            pass
 
         rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv)
         if ru.is_end():
@@ -152,9 +154,9 @@ if __name__=="__main__":
         if len(rubuff)==max_buffer:
             for i in range(ppo_epochs):
 
-                for states,logprobs,actions,returns,advantages in rubuff.batch_gen():
+                for states,logprobs,actions,returns,advantages,rewards in rubuff.batch_gen():
 
-                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages)
+                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
 
                 graph_count+=1
             save_model(actor,critic)
