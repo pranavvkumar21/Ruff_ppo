@@ -14,8 +14,8 @@ clipping_val = 0.2
 entropy = 0.0025
 tfd = tfp.distributions
 
-act_optimizer = keras.optimizers.SGD(learning_rate=1e-4,clipnorm=1.0)
-cri_optimizer = keras.optimizers.SGD(learning_rate=1e-4,clipnorm = 1.0)
+act_optimizer = keras.optimizers.SGD(learning_rate=3.5e-4,clipnorm=1.0)
+cri_optimizer = keras.optimizers.SGD(learning_rate=3.5e-4,clipnorm = 1.0)
 
 def get_advantages(values, masks, rewards):
     returns = []
@@ -28,7 +28,7 @@ def get_advantages(values, masks, rewards):
     adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-10)
     return returns, adv
 
-def ruff_train(actor,critic,states,logprobs,actions,returns,advantages):
+def ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards):
     with tf.GradientTape(persistent = True) as tape:
         old_log_probs = logprobs
         mu,sigma = actor(states)
@@ -38,8 +38,8 @@ def ruff_train(actor,critic,states,logprobs,actions,returns,advantages):
         ratio = K.exp(new_log_probs - old_log_probs)
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
-        actor_loss = -K.mean(K.minimum(p1, p2),axis=0)
-        critic_loss = K.mean(K.abs(returns - critic(states)),axis=0)
+        actor_loss = -K.mean(K.minimum(p1, p2),axis=1)
+        critic_loss = K.abs(rewards - critic(states))
     actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
@@ -47,40 +47,36 @@ def ruff_train(actor,critic,states,logprobs,actions,returns,advantages):
     return actor_loss,critic_loss
 
 
-def actor_Model(Input_shape,output_size):
+def actor_Model(Input_shape,output_size,load=True):
     inputs = Input(shape=(Input_shape))
     X = Dense(256, activation="relu", name="fc1")(inputs)
     X = Dense(256, activation="relu", name="fc2")(X)
     mu = Dense(output_size, activation="tanh", name="mean")(X)
     sigma = Dense(output_size, activation="softplus", name="sigma")(X)
     model = keras.Model(inputs=inputs, outputs=[mu,sigma])
-    try:
-        model.load_weights("../model/ppo_actor.h5")
-        print("loaded actor weights")
-    except:
-        print("unable to load actor weights")
+    if load:
+        try:
+            model.load_weights("../model/ppo_actor.h5")
+            print("loaded actor weights")
+        except:
+            print("unable to load actor weights")
     return model
 
-def critic_Model(Input_shape,output_size):
+def critic_Model(Input_shape,output_size,load=True):
     inputs = Input(shape=(Input_shape))
     X = Dense(256, activation="relu")(inputs)
     X = Dense(256, activation="relu")(X)
     X = Dense(output_size)(X)
     model = keras.Model(inputs=inputs, outputs=X)
-    try:
-        model.load_weights("../model/ppo_critic.h5")
-        print("loaded critic weights")
-    except:
-        print("unable to load critic weights")
+    if load:
+        try:
+            model.load_weights("../model/ppo_critic.h5")
+            print("loaded critic weights")
+        except:
+            print("unable to load critic weights")
     return model
 
 def save_model(actor,critic):
-    act_json = actor.to_json()
-    cri_json = critic.to_json()
-    with open("../model/ppo_actor.json","w") as json_file:
-        json_file.write(act_json)
-    with open("../model/ppo_critic.json","w") as json_file:
-        json_file.write(cri_json)
     actor.save_weights("../model/ppo_actor.h5")
     critic.save_weights("../model/ppo_critic.h5")
     print("model saved")
