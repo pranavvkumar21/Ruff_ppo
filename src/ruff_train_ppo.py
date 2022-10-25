@@ -95,6 +95,11 @@ def check_log(filename):
     return filename
 
 def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
+    eps_states = []
+    eps_actions = []
+    eps_reward = []
+    eps_critic_value = []
+    eps_log_probs = []
     for step in range(STEPS_PER_EPISODE):
         state_curr = ru.get_state()
 
@@ -111,10 +116,6 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         p.stepSimulation()
         new_state = ru.get_state()
         reward = ru.get_reward(episode,step)
-        ret = reward + gamma*critic(new_state)
-        adv = ret - critic_value
-        if ru.is_end():
-            pass
 
         rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv)
         if ru.is_end():
