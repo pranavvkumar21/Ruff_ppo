@@ -2,13 +2,14 @@
 
 from model_ppo import *
 from ruff import *
+import gc
 
 tfd = tfp.distributions
 
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 12_000
-MINIBATCH_SIZE = 4_000
+MINIBATCH_SIZE = 1_000
 ppo_epochs = 3
 timestep =1.0/240.0
 num_inputs = (60,)
@@ -46,12 +47,12 @@ class buffer:
     def append(self,state=None,action=None,reward=None,value=None,logprobs=None,ret=None,adv=None):
 
         self.states = np.concatenate([self.states,state]) if type(state)!=type(None) else 0
-        self.actions = np.concatenate([self.actions,np.array(action).reshape((1,16))]) if action !=None else 0
-        self.rewards = np.concatenate([self.rewards,np.array(reward).reshape((1,1))]) if reward!=None else 0
-        self.values = np.concatenate([self.values,value]) if value!=None else 0
-        self.logprobs = np.concatenate([self.logprobs,logprobs]) if logprobs!=None else 0
-        self.advantages = np.concatenate([self.advantages,adv]) if adv!=None else 0
-        self.returns = np.concatenate([self.returns,ret]) if ret!=None else 0
+        self.actions = np.concatenate([self.actions,action])
+        self.rewards = np.concatenate([self.rewards,reward])
+        self.values = np.concatenate([self.values,value])
+        self.logprobs = np.concatenate([self.logprobs,logprobs])
+        self.advantages = np.concatenate([self.advantages,adv])
+        self.returns = np.concatenate([self.returns,ret])
 
         self.states = self.states[-self.max_len:]
         self.actions = self.actions[-self.max_len:]
@@ -59,7 +60,6 @@ class buffer:
         self.values = self.values[-self.max_len:]
         self.logprobs = self.logprobs[-self.max_len:]
         self.advantages = self.advantages[-self.max_len:]
-        self.adv = (self.advantages-np.mean(self.advantages))/(np.std(self.advantages)+1e-10)
         self.returns = self.returns[-self.max_len:]
     def batch_gen(self):
         np.random.shuffle(self.keys)
@@ -70,7 +70,7 @@ class buffer:
             log_prob = np.take(self.logprobs,i,0)
             returns = np.take(self.returns,i,0)
             rewards = np.take(self.rewards,i,0)
-            advantages = np.take(self.adv,i,0)
+            advantages = np.take(self.advantages,i,0)
             yield state,log_prob,action,returns,advantages,rewards
 
 
@@ -97,9 +97,10 @@ def check_log(filename):
 def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     eps_states = []
     eps_actions = []
-    eps_reward = []
+    eps_rewards = []
     eps_critic_value = []
     eps_log_probs = []
+    masks=[]
     for step in range(STEPS_PER_EPISODE):
         state_curr = ru.get_state()
 
@@ -117,17 +118,35 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         new_state = ru.get_state()
         reward = ru.get_reward(episode,step)
 
-        rubuff.append(state_curr,actions,reward,critic_value,log_probs,ret,adv)
-        if ru.is_end():
-            break
+        eps_states.append(state_curr)
+        eps_actions.append(np.array(actions).reshape((1,16)))
+        eps_log_probs.append(log_probs)
+        eps_rewards.append(np.array(reward).reshape((1,1)))
+        eps_critic_value.append(critic_value)
 
+
+        if ru.is_end():
+            masks.append(0)
+            break
+        else:
+            masks.append(1)
+    critic_value = critic(new_state)
+    eps_critic_value.append(critic_value)
+    ret,adv = get_advantages(eps_critic_value, masks, eps_rewards)
+    eps_states = np.concatenate(eps_states,axis=0)
+    eps_actions = np.concatenate(eps_actions,axis=0)
+    eps_rewards = np.concatenate(eps_rewards ,axis=0)
+    eps_critic_value = np.concatenate(eps_critic_value[:-1],axis=0)
+    eps_log_probs = np.concatenate(eps_log_probs,axis=0)
+    ret = np.concatenate(ret,axis=0)
+    rubuff.append(eps_states,eps_actions,eps_rewards,eps_critic_value,eps_log_probs,ret,adv)
     return step
 
 if __name__=="__main__":
     filename =check_log(filename)
     ru = ruff(id,kf,ke)
-    actor = actor_Model(num_inputs, n_actions)
-    critic = critic_Model(num_inputs, 1)
+    actor = actor_Model(num_inputs, n_actions,load=False)
+    critic = critic_Model(num_inputs, 1,load=False)
     try:
         actor.load_weights("actor.h5")
         critic.load_weights("critic.h5")
@@ -142,6 +161,7 @@ if __name__=="__main__":
             log_episode(log_file,"episode","avg_eps_reward","step",1)
 
         reset_world(bullet_file)
+        gc.collect()
         ru = ruff(id,kf,ke)
 
         step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)

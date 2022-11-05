@@ -14,8 +14,8 @@ clipping_val = 0.2
 entropy = 0.0025
 tfd = tfp.distributions
 
-act_optimizer = keras.optimizers.SGD(learning_rate=3.5e-4,clipnorm=1.0)
-cri_optimizer = keras.optimizers.SGD(learning_rate=3.5e-4,clipnorm = 1.0)
+act_optimizer = keras.optimizers.SGD(learning_rate=1e-4,clipnorm=1.0)
+cri_optimizer = keras.optimizers.SGD(learning_rate=1e-4,clipnorm = 1.0)
 
 def get_advantages(values, masks, rewards):
     returns = []
@@ -26,6 +26,7 @@ def get_advantages(values, masks, rewards):
         returns.insert(0, gae + values[i])
     adv = np.array(returns).reshape((-1,1)) - np.array(values[:-1]).reshape((-1,1))
     adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-10)
+    del masks
     return returns, adv
 
 def ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards):
@@ -38,9 +39,11 @@ def ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards):
         ratio = K.exp(new_log_probs - old_log_probs)
         p1 = ratio * advantages
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
-        actor_loss = -K.mean(K.minimum(p1, p2),axis=1)
-        critic_loss = K.abs(rewards - critic(states))
-    actor_grads = tape.gradient(actor_loss, actor.trainable_variables)
+        entropy_loss = entropy*K.mean(-(K.exp(new_log_probs)*new_log_probs),axis=1)
+        critic_loss = K.abs(returns- critic(states))
+        actor_loss = -K.mean(K.minimum(p1, p2),axis=1) - entropy_loss
+        total_loss = critic_discount * critic_loss+ actor_loss - entropy_loss
+    actor_grads = tape.gradient(total_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
     cri_optimizer.apply_gradients(zip(critic_grads, critic.trainable_variables))
