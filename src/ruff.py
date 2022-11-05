@@ -17,7 +17,7 @@ import random
 
 
 NUM_EPISODES = 100_000
-STEPS_PER_EPISODE = 1_000
+STEPS_PER_EPISODE = 3_000
 timestep =1.0/240.0
 num_inputs = (60,)
 gamma= 0.992
@@ -222,7 +222,7 @@ class ruff:
         joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
         basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance
         freq_reward = 0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = 0.3*( joint_constraints  + foot_slip + policy_smooth+twist)
+        efficiency_reward = 0*( joint_constraints  + foot_slip + policy_smooth+twist)
 
         self.reward = basic_reward+ freq_reward + efficiency_reward
         if self.reward<0:
