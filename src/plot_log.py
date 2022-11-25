@@ -19,7 +19,7 @@ def animate(i):
     ax1.clear()
     ax1.plot(xar,yar_eps)
     ax1.plot(xar,ema_e)
-    #plt.ylim(-5,5)
+#    plt.ylim(-5,5)
 ani = animation.FuncAnimation(fig, animate, interval=1000)
 plt.show()
 print(df.keys())
