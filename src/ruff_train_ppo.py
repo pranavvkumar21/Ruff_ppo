@@ -161,13 +161,11 @@ if __name__=="__main__":
     for episode in range(NUM_EPISODES ):
         if episode == 0:
             log_episode(log_file,"episode","avg_eps_reward","step","act_loss","crit_loss",True)
-
         reset_world(bullet_file)
         gc.collect()
         ru = ruff(id,kf,ke)
         step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
         rubuff.states = (rubuff.states -np.mean(rubuff.states,axis=0))/(np.std(rubff.states)+1e-10)
-        print(np.min(rubuff.states))
         episode_reward = np.sum(rubuff.rewards[-step:])
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
 
