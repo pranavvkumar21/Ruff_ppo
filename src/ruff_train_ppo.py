@@ -5,11 +5,11 @@ from ruff import *
 import gc
 
 tfd = tfp.distributions
-
+LOAD = True
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
-max_buffer = 12_000
-MINIBATCH_SIZE = 1_000
+max_buffer = 30000
+MINIBATCH_SIZE = 3000
 ppo_epochs = 3
 timestep =1.0/240.0
 num_inputs = (60,)
@@ -22,6 +22,8 @@ entropy = 0.0025
 kf = 0
 ke = 0
 kd = 1
+act_loss=0
+crit_loss=0
 
 bullet_file = "../model/test_ppo.bullet"
 log_file = "ppo_ruff_logfile.csv"
@@ -80,9 +82,9 @@ class buffer:
         #print(len(self.masks))
         return len(self.states)
 
-def log_episode(log_file,episode,episode_reward,step,new = 0):
-    data = [[episode,episode_reward,step]]
-    if new == 1:
+def log_episode(log_file,episode,episode_reward,step,act_loss=0,crit_loss=0,new = False):
+    data = [[episode,episode_reward,step,act_loss,crit_loss]]
+    if new:
         os.remove(log_file)
     with open(log_file, 'a', newline="") as file:
         csvwriter = csv.writer(file) # 2. create a csvwriter object
@@ -145,8 +147,8 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
 if __name__=="__main__":
     filename =check_log(filename)
     ru = ruff(id,kf,ke)
-    actor = actor_Model(num_inputs, n_actions,load=False)
-    critic = critic_Model(num_inputs, 1,load=False)
+    actor = actor_Model(num_inputs, n_actions,load=LOAD)
+    critic = critic_Model(num_inputs, 1,load=LOAD)
     try:
         actor.load_weights("actor.h5")
         critic.load_weights("critic.h5")
@@ -158,17 +160,14 @@ if __name__=="__main__":
     rubuff = buffer(max_buffer,MINIBATCH_SIZE)
     for episode in range(NUM_EPISODES ):
         if episode == 0:
-            log_episode(log_file,"episode","avg_eps_reward","step",1)
+            log_episode(log_file,"episode","avg_eps_reward","step","act_loss","crit_loss",True)
 
         reset_world(bullet_file)
         gc.collect()
         ru = ruff(id,kf,ke)
-
         step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
-        #returns, advantages = get_advantages(rubuff.values, rubuff.masks, rubuff.rewards)
-        #rint(len(rubuff.logprobs))
-
-
+        rubuff.states = (rubuff.states -np.mean(rubuff.states,axis=0))/(np.std(rubff.states)+1e-10)
+        print(np.min(rubuff.states))
         episode_reward = np.sum(rubuff.rewards[-step:])
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
 
@@ -183,6 +182,6 @@ if __name__=="__main__":
             save_model(actor,critic)
         else:
             print("buffer size = "+str(len(rubuff)))
-        log_episode(log_file,episode,episode_reward/step,step)
+        log_episode(log_file,episode,episode_reward/step,step,float(act_loss),float(crit_loss))
 
     close_world()

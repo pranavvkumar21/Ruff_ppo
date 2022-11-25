@@ -5,6 +5,7 @@ from tensorflow.keras.layers import Input,Dense
 import tensorflow_probability as tfp
 import numpy as np
 import sys
+import gc
 np.set_printoptions(threshold=sys.maxsize)
 import keras.backend as K
 gamma= 0.992
@@ -14,8 +15,8 @@ clipping_val = 0.2
 entropy = 0.0025
 tfd = tfp.distributions
 
-act_optimizer = keras.optimizers.SGD(learning_rate=1e-4,clipnorm=1.0)
-cri_optimizer = keras.optimizers.SGD(learning_rate=1e-4,clipnorm = 1.0)
+act_optimizer = keras.optimizers.SGD(learning_rate=3.5e-4,clipnorm=1.0)
+cri_optimizer = keras.optimizers.SGD(learning_rate=3.5e-4,clipnorm = 1.0)
 
 def get_advantages(values, masks, rewards):
     returns = []
@@ -41,13 +42,15 @@ def ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards):
         p2 = K.clip(ratio, min_value=1 - clipping_val, max_value=1 + clipping_val) * advantages
         entropy_loss = entropy*K.mean(-(K.exp(new_log_probs)*new_log_probs),axis=1)
         critic_loss = K.abs(returns- critic(states))
-        actor_loss = -K.mean(K.minimum(p1, p2),axis=1) - entropy_loss
-        total_loss = critic_discount * critic_loss+ actor_loss - entropy_loss
+        actor_loss = tf.reshape((-K.mean(K.minimum(p1, p2),axis=1) - entropy_loss),(-1,1))
+        total_loss = critic_discount * critic_loss+ actor_loss
     actor_grads = tape.gradient(total_loss, actor.trainable_variables)
     critic_grads = tape.gradient(critic_loss, critic.trainable_variables)
     act_optimizer.apply_gradients(zip(actor_grads, actor.trainable_variables))
     cri_optimizer.apply_gradients(zip(critic_grads, critic.trainable_variables))
-    return actor_loss,critic_loss
+    gc.collect()
+    K.clear_session()
+    return K.mean(actor_loss),K.mean(critic_loss)
 
 
 def actor_Model(Input_shape,output_size,load=True):

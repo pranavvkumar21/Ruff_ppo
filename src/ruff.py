@@ -132,16 +132,16 @@ class ruff:
         for i in range(4):
             freq_state = freq_state + [math.sin(self.rg_phase[i]),math.cos(self.rg_phase[i])]
         state = list(self.command)
-        state = state + list([i/10 for i in self.base_linear_velocity])+list([i/10 for i in self.base_angular_velocity])
-        state = state + list(i/(2*math.pi) for i in self.joint_position)+list(i/10 for i in self.joint_velocity)
+        state = state + list([i for i in self.base_linear_velocity])+list([i for i in self.base_angular_velocity])
+        state = state + list(i for i in self.joint_position)+list(i for i in self.joint_velocity)
 
-        state = state + list([i/(2*math.pi) for i in self.pos_error])
+        state = state + list([i for i in self.pos_error])
 
-        state = state + list(i/(2*math.pi) for i in self.rg_freq)
+        state = state + list(i for i in self.rg_freq)
 
         state = state + freq_state
 
-        state = state + list([i/(2*math.pi) for i in self.base_orientation])
+        state = state + list([i for i in self.base_orientation])
 
         state = np.array(state,dtype="float32")
         state = np.reshape(state, (1,-1))
@@ -222,7 +222,7 @@ class ruff:
         joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
         basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance
         freq_reward = 0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = 0*( joint_constraints  + foot_slip + policy_smooth+twist)
+        efficiency_reward = 0.5*( joint_constraints  + foot_slip + policy_smooth+twist)
 
         self.reward = basic_reward+ freq_reward + efficiency_reward
         if self.reward<0:
