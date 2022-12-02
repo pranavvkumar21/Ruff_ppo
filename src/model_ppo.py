@@ -60,7 +60,7 @@ def actor_Model(Input_shape,output_size,load=True):
     X = Dense(256, activation="relu", name="fc2")(X)
     X = BatchNormalization(name = 'bn1')(X)
     mu = Dense(output_size, activation="tanh", name="mean")(X)
-    sigma = Dense(output_size, activation="sigmoid", name="sigma")(X)
+    sigma = Dense(output_size, activation="softplus", name="sigma")(X)
     model = keras.Model(inputs=inputs, outputs=[mu,sigma])
     if load:
         try:
