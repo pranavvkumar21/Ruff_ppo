@@ -31,7 +31,7 @@ reward_log = 'reward_logfile.csv'
 discounted_sum = 0
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
-client_mode = p.GUI
+client_mode = p.DIRECT
 tfd = tfp.distributions
 
 
@@ -161,10 +161,10 @@ class ruff:
                 self.target_pos[i]=-2*math.pi
 
     def get_contact(self):
-        self.is_contact = [p.getContactPoints(1,0,linkIndexA=2)!=(),p.getContactPoints(1,0,linkIndexA=5)!=(),
-        p.getContactPoints(1,0,linkIndexA=8)!=(),p.getContactPoints(1,0,linkIndexA=11)!=()]
+        self.is_contact = [p.getContactPoints(self.id,0,linkIndexA=2)!=(),p.getContactPoints(self.id,0,linkIndexA=5)!=(),
+        p.getContactPoints(self.id,0,linkIndexA=8)!=(),p.getContactPoints(self.id,0,linkIndexA=11)!=()]
     def get_height(self):
-        self.foot_height = [p.getClosestPoints(1,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(1,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(1,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(1,0,50000.0,linkIndexA=11)[0][8]]
+        self.foot_height = [p.getClosestPoints(self.id,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=11)[0][8]]
     def move(self):
         max_force = [100]*12
         p.setJointMotorControlArray(self.id,self.n_joints,controlMode=p.POSITION_CONTROL,
@@ -203,7 +203,7 @@ class ruff:
         Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/abs(self.command[0])) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/abs(self.command[0])))
         twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/abs(self.command[0])
 
-        if p.getContactPoints(1,0,linkIndexA=-1)!=() or p.getContactPoints(1,0,linkIndexA=0)!=() or p.getContactPoints(1,0,linkIndexA=1)!=() or p.getContactPoints(1,0,linkIndexA=3)!=() or p.getContactPoints(1,0,linkIndexA=4)!=() or p.getContactPoints(1,0,linkIndexA=6)!=() or p.getContactPoints(1,0,linkIndexA=7)!=() or p.getContactPoints(1,0,linkIndexA=9)!=() or p.getContactPoints(1,0,linkIndexA=10)!=():
+        if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
             collision = -8
         else:
             collision = 0
@@ -244,7 +244,7 @@ class ruff:
         return self.reward,rewards
 
     def is_end(self):
-        if p.getContactPoints(1,0,linkIndexA=-1)!=() or p.getContactPoints(1,0,linkIndexA=0)!=() or p.getContactPoints(1,0,linkIndexA=1)!=() or p.getContactPoints(1,0,linkIndexA=3)!=() or p.getContactPoints(1,0,linkIndexA=4)!=() or p.getContactPoints(1,0,linkIndexA=6)!=() or p.getContactPoints(1,0,linkIndexA=7)!=() or p.getContactPoints(1,0,linkIndexA=9)!=() or p.getContactPoints(1,0,linkIndexA=10)!=() :
+        if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=() :
             return 1
         else:
             return 0

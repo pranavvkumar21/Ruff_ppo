@@ -112,16 +112,19 @@ def check_log(filename):
     return filename
 
 def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
-    eps_states = [[]*len(ruff_s)]
-    eps_actions = [[]*len(ruff_s)]
-    eps_rewards = [[]*len(ruff_s)]
-    eps_critic_value = [[]*len(ruff_s)]
-    eps_log_probs = [[]*len(ruff_s)]
-    masks=[[]*len(ruff_s)]
-    rewards=[[]*len(ruff_s)]
-    end_flag = [0]*len(ruff_s)
+    eps_states = [[] for i in range(len(ruff_s))]
+    eps_actions = [[] for i in range(len(ruff_s))]
+    eps_rewards = [[] for i in range(len(ruff_s))]
+    eps_critic_value = [[] for i in range(len(ruff_s))]
+    eps_log_probs = [[] for i in range(len(ruff_s))]
+    masks=[[] for i in range(len(ruff_s))]
+    rewards=[[] for i in range(len(ruff_s))]
+    rets = [[] for i in range(len(ruff_s))]
+    advs = [[] for i in range(len(ruff_s))]
+    end_flag = [0 for i in range(len(ruff_s))]
     for step in range(STEPS_PER_EPISODE):
-
+        print(step)
+        print(end_flag)
         global kc, kd
         kc = kc**kd
         for i,ru in enumerate(ruff_s):
@@ -135,8 +138,10 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
                 ru.update_policy(actions)
                 ru.update_target_pos(pos_inc)
                 ru.move()
-
-                eps_states[i].append(state_curr)
+                try:
+                    eps_states[i].append(state_curr)
+                except:
+                    print(i)
                 eps_actions[i].append(np.array(actions).reshape((1,16)))
                 eps_log_probs[i].append(log_probs)
                 eps_critic_value[i].append(critic_value)
@@ -146,6 +151,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
 
         for i,ru in enumerate(ruff_s):
             if not end_flag[i]:
+
                 new_state = ru.get_state()
                 reward,re = ru.get_reward(episode,step,kc)
                 rewards[i].append(re)
@@ -157,45 +163,54 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
                     critic_value = critic(new_state)
                     eps_critic_value[i].append(critic_value)
                     ret,adv = get_advantages(eps_critic_value[i], masks[i], eps_rewards[i])
+                    rets[i].append(ret)
+                    advs[i].append(adv)
                 elif not end_flag[i]:
                     masks[i].append(1)
-    rew_mean = np.mean(np.array(rewards),axis=1)
+    #rew_mean = np.mean(np.array(rewards),axis=1)
     #critic_value = critic(new_state)
     #eps_critic_value.append(critic_value)
-    ret,adv = get_advantages(eps_critic_value, masks, eps_rewards)
-    eps_states = np.concatenate(eps_states,axis=0)
-    eps_actions = np.concatenate(eps_actions,axis=0)
-    eps_rewards = np.concatenate(eps_rewards ,axis=0)
-    eps_critic_value = np.concatenate(eps_critic_value[:-1],axis=0)
-    eps_log_probs = np.concatenate(eps_log_probs,axis=0)
-    ret = np.concatenate(ret,axis=0)
+    #ret,adv = get_advantages(eps_critic_value, masks, eps_rewards)
+    for i,ru in enumerate(ruff_s):
+        if not end_flag[i]:
+            new_state = ru.get_state()
+            critic_value = critic(new_state)
+            eps_critic_value[i].append(critic_value)
+            ret,adv = get_advantages(eps_critic_value[i], masks[i], eps_rewards[i])
+            rets[i].append(ret)
+            advs[i].append(adv)
+
+    eps_states = np.concatenate([np.concatenate(st,axis=0) for st in eps_states],axis=0)
+    print(eps_states.shape)
+    eps_actions = np.concatenate([np.concatenate(act,axis=0) for act in eps_actions],axis=0)
+    eps_rewards = np.concatenate([np.concatenate(rew,axis=0) for rew in eps_rewards],axis=0)
+    eps_critic_value = np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0)
+    eps_log_probs = np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)
+    rets = np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0)
+    advs = np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)
+    print(rets.shape)
+    print(advs.shape)
     eps_states = (eps_states-np.mean(eps_states,0))/(np.std(eps_states,0)+1e-10)
     rubuff.append(eps_states,eps_actions,eps_rewards,eps_critic_value,eps_log_probs,ret,adv)
-    return step,rew_mean
+    return step,0
 
 if __name__=="__main__":
-    id  = setup_world(3)
+    id  = setup_world(5)
     filename =check_log(filename)
-    ru = ruff(id)
+    ruff_s = [ruff(i) for i in id]
     actor = actor_Model(num_inputs, n_actions,load=LOAD)
     critic = critic_Model(num_inputs, 1,load=LOAD)
-    try:
-        actor.load_weights("actor.h5")
-        critic.load_weights("critic.h5")
-
-    except:
-        pass
-
 
     rubuff = buffer(max_buffer,MINIBATCH_SIZE)
     for episode in range(NUM_EPISODES ):
         if episode == 0:
             log_episode(log_file,"episode","avg_eps_reward","step","act_loss","crit_loss",True)
             log_reward(reward_log,reward_list,new=1)
+            save_world(bullet_file)
         reset_world(bullet_file)
         gc.collect()
-        ru = ruff(id)
-        step,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
+        ruff_s = [ruff(i) for i in id]
+        step,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode)
         req_step+=step
         episode_reward = np.sum(rubuff.rewards[-step:])
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
