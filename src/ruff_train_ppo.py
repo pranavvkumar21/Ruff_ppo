@@ -32,13 +32,7 @@ graph_count = 0
 reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance",
            "foot_stance", "foot_clear","foot_zvel", "frequency_err", "phase_err",
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
-"""
-if LOAD == True:
-    for i in range(2845608):
-        kc = kc**kd
-"""
-#kc= 0.9999
-
+n_actors = 5
 
 class buffer:
     def __init__(self,max_len,batch_size):
@@ -117,49 +111,57 @@ def check_log(filename):
     filename = '../logs/ '+filename + "_"+str(filecode)+ ".csv"
     return filename
 
-def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
-    eps_states = []
-    eps_actions = []
-    eps_rewards = []
-    eps_critic_value = []
-    eps_log_probs = []
-    masks=[]
-    rewards=[]
+def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
+    eps_states = [[]*len(ruff_s)]
+    eps_actions = [[]*len(ruff_s)]
+    eps_rewards = [[]*len(ruff_s)]
+    eps_critic_value = [[]*len(ruff_s)]
+    eps_log_probs = [[]*len(ruff_s)]
+    masks=[[]*len(ruff_s)]
+    rewards=[[]*len(ruff_s)]
+    end_flag = [0]*len(ruff_s)
     for step in range(STEPS_PER_EPISODE):
-        state_curr = ru.get_state()
 
-        mu,sigma = actor([state_curr])
-        #print(sigma)
-
-        critic_value = critic(state_curr)
-        pos_inc, freq, actions, log_probs = ru.action_select(mu,sigma)
-        ru.set_frequency(freq)
-        ru.phase_modulator()
-        ru.update_policy(actions)
-
-        ru.update_target_pos(pos_inc)
-        ru.move()
-        p.stepSimulation()
-        new_state = ru.get_state()
         global kc, kd
         kc = kc**kd
-        reward,re = ru.get_reward(episode,step,kc)
-        rewards.append(re)
-        eps_states.append(state_curr)
-        eps_actions.append(np.array(actions).reshape((1,16)))
-        eps_log_probs.append(log_probs)
-        eps_rewards.append(np.array(reward).reshape((1,1)))
-        eps_critic_value.append(critic_value)
+        for i,ru in enumerate(ruff_s):
+            if not ru.is_end():
+                state_curr = ru.get_state()
+                mu,sigma = actor([state_curr])
+                critic_value = critic(state_curr)
+                pos_inc, freq, actions, log_probs = ru.action_select(mu,sigma)
+                ru.set_frequency(freq)
+                ru.phase_modulator()
+                ru.update_policy(actions)
+                ru.update_target_pos(pos_inc)
+                ru.move()
 
+                eps_states[i].append(state_curr)
+                eps_actions[i].append(np.array(actions).reshape((1,16)))
+                eps_log_probs[i].append(log_probs)
+                eps_critic_value[i].append(critic_value)
+        #append state,actions,log_probs,critic_value
+        #end for
+        p.stepSimulation()
 
-        if ru.is_end():
-            masks.append(0)
-            break
-        else:
-            masks.append(1)
-    rew_mean = np.mean(np.array(rewards),axis=0)
-    critic_value = critic(new_state)
-    eps_critic_value.append(critic_value)
+        for i,ru in enumerate(ruff_s):
+            if not end_flag[i]:
+                new_state = ru.get_state()
+                reward,re = ru.get_reward(episode,step,kc)
+                rewards[i].append(re)
+                eps_rewards[i].append(np.array(reward).reshape((1,1)))
+
+                if ru.is_end() and not end_flag[i]:
+                    masks[i].append(0)
+                    end_flag[i] = 1
+                    critic_value = critic(new_state)
+                    eps_critic_value[i].append(critic_value)
+                    ret,adv = get_advantages(eps_critic_value[i], masks[i], eps_rewards[i])
+                elif not end_flag[i]:
+                    masks[i].append(1)
+    rew_mean = np.mean(np.array(rewards),axis=1)
+    #critic_value = critic(new_state)
+    #eps_critic_value.append(critic_value)
     ret,adv = get_advantages(eps_critic_value, masks, eps_rewards)
     eps_states = np.concatenate(eps_states,axis=0)
     eps_actions = np.concatenate(eps_actions,axis=0)
@@ -172,6 +174,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     return step,rew_mean
 
 if __name__=="__main__":
+    id  = setup_world(3)
     filename =check_log(filename)
     ru = ruff(id)
     actor = actor_Model(num_inputs, n_actions,load=LOAD)

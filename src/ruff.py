@@ -48,7 +48,7 @@ def setup_world(n_actors):
         p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
         ids.append(boxId)
     return ids
-id  = setup_world(3)
+
 
 def reset_world(filepath):
     if exists(filepath):
