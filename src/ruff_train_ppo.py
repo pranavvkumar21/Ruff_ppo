@@ -167,13 +167,14 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     eps_critic_value = np.concatenate(eps_critic_value[:-1],axis=0)
     eps_log_probs = np.concatenate(eps_log_probs,axis=0)
     ret = np.concatenate(ret,axis=0)
+    print(adv.shape)
     eps_states = (eps_states-np.mean(eps_states,0))/(np.std(eps_states,0)+1e-10)
     rubuff.append(eps_states,eps_actions,eps_rewards,eps_critic_value,eps_log_probs,ret,adv)
     return step,rew_mean
 
 if __name__=="__main__":
     filename =check_log(filename)
-    ru = ruff(id)
+    ru = ruff(id[0])
     actor = actor_Model(num_inputs, n_actions,load=LOAD)
     critic = critic_Model(num_inputs, 1,load=LOAD)
     try:
@@ -189,9 +190,10 @@ if __name__=="__main__":
         if episode == 0:
             log_episode(log_file,"episode","avg_eps_reward","step","act_loss","crit_loss",True)
             log_reward(reward_log,reward_list,new=1)
+            save_world(bullet_file)
         reset_world(bullet_file)
         gc.collect()
-        ru = ruff(id)
+        ru = ruff(id[0])
         step,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
         req_step+=step
         episode_reward = np.sum(rubuff.rewards[-step:])
