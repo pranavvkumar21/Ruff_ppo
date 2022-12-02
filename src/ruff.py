@@ -29,25 +29,26 @@ curDT = datetime.now()
 filename = "ruff_logfile"
 reward_log = 'reward_logfile.csv'
 discounted_sum = 0
-kc = 0
-kd = 1
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
-client_mode = p.DIRECT
+client_mode = p.GUI
 tfd = tfp.distributions
 
 
-def setup_world():
+def setup_world(n_actors):
     physicsClient = p.connect(client_mode)##or p.DIRECT for no    n-graphical version
     p.setAdditionalSearchPath(pybullet_data.getDataPath()) #optionally
     p.setGravity(0,0,-10)
     planeId = p.loadURDF("plane.urdf")
-    startPos = [0,0,0.4]
-    startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-    boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)
-    p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
-    return boxId
-id  = setup_world()
+    ids = []
+    for i in range(n_actors):
+        startPos = [0,i*3,0.4]
+        startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
+        boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)
+        p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
+        ids.append(boxId)
+    return ids
+id  = setup_world(3)
 
 def reset_world(filepath):
     if exists(filepath):
@@ -61,11 +62,10 @@ def close_world():
 
 
 class ruff:
-    def __init__(self, id,kf,ke):
+    def __init__(self, id):
         self.id = id
-        self.command = [0.3 , 1e-10, 1e-10] #3 commands for motion
-        self.kf = 0
-        self.ke = 0
+        self.command = [0.6 , 1e-10, 1e-10] #3 commands for motion
+
         self.num_joints = p.getNumJoints(self.id)
         self.joint_names = {}
         for i in range(self.num_joints):
@@ -104,7 +104,7 @@ class ruff:
         self.joint_force = []
         self.joint_torque = []
         n_joints = [i for i in range(self.num_joints) ]
-        self.joint_state = p.getJointStates(id,n_joints)
+        self.joint_state = p.getJointStates(self.id,n_joints)
         for i in self.joint_state:
             self.joint_position.append((i[0]))
             self.joint_velocity.append(i[1])
@@ -132,16 +132,16 @@ class ruff:
         for i in range(4):
             freq_state = freq_state + [math.sin(self.rg_phase[i]),math.cos(self.rg_phase[i])]
         state = list(self.command)
-        state = state + list([i for i in self.base_linear_velocity])+list([i for i in self.base_angular_velocity])
-        state = state + list(i for i in self.joint_position)+list(i for i in self.joint_velocity)
+        state = state + list([i/10 for i in self.base_linear_velocity])+list([i/10 for i in self.base_angular_velocity])
+        state = state + list(i/(2*math.pi) for i in self.joint_position)+list(i/10 for i in self.joint_velocity)
 
-        state = state + list([i for i in self.pos_error])
+        state = state + list([i/(2*math.pi) for i in self.pos_error])
 
-        state = state + list(i for i in self.rg_freq)
+        state = state + list(i/(2*math.pi) for i in self.rg_freq)
 
         state = state + freq_state
 
-        state = state + list([i for i in self.base_orientation])
+        state = state + list([i/(2*math.pi) for i in self.base_orientation])
 
         state = np.array(state,dtype="float32")
         state = np.reshape(state, (1,-1))
@@ -155,6 +155,10 @@ class ruff:
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
             self.target_pos[i]+=pos_inc[i]
+            if self.target_pos[i]>2*math.pi:
+                self.target_pos[i]=2*math.pi
+            if self.target_pos[i]<-2*math.pi:
+                self.target_pos[i]=-2*math.pi
 
     def get_contact(self):
         self.is_contact = [p.getContactPoints(1,0,linkIndexA=2)!=(),p.getContactPoints(1,0,linkIndexA=5)!=(),
@@ -162,7 +166,7 @@ class ruff:
     def get_height(self):
         self.foot_height = [p.getClosestPoints(1,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(1,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(1,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(1,0,50000.0,linkIndexA=11)[0][8]]
     def move(self):
-        max_force = [50]*12
+        max_force = [100]*12
         p.setJointMotorControlArray(self.id,self.n_joints,controlMode=p.POSITION_CONTROL,
                                     targetPositions = self.target_pos,forces=max_force)
     def set_frequency(self,freq):
@@ -176,16 +180,24 @@ class ruff:
         actions = dist.sample(1)
         actions = actions.numpy().tolist()[0][0]
         pos_inc = actions[0:12]
-        pos_inc = [i*math.pi/90 for i in pos_inc]
-        freq = actions[12:]
+        for i in range(len(pos_inc)):
+            if pos_inc[i]<-0.33:
+                pos_inc[i]= -1*math.pi/180
+            elif pos_inc[i]<0.33:
+                pos_inc[i]= 1*math.pi/180
+            else:
+                pos_inc[i] = 0
+
+        #pos_inc = [i*math.pi/90 for i in pos_inc]
+        freq = np.abs(actions[12:])
         log_probs = dist.log_prob(actions)
         return pos_inc,freq, actions,log_probs
 
-    def get_reward(self,episode,step):
+    def get_reward(self,episode,step,kc):
         c1 = 1.2
         c4 = 7.5
 
-        forward_velocity = 5*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/abs(self.command[0]))
+        forward_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/abs(self.command[0]))
         lateral_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[1]-self.command[1])**2)/abs(self.command[1]))
         angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/abs(self.command[2]))
         Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/abs(self.command[0])) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/abs(self.command[0])))
@@ -219,18 +231,17 @@ class ruff:
         foot_zvel1 = (-0.03*foot_zvel1**2)/abs(self.command[0])
         foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
         frequency_err = -0.03*frequency_err
-        joint_constraints = -0.8*(joint_constraints)/abs(self.command[0])
+        joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
         basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance
-        freq_reward = 0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = 0.5*( joint_constraints  + foot_slip + policy_smooth+twist)
+        freq_reward = kc* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
+        efficiency_reward = kc*( joint_constraints  + foot_slip + policy_smooth+twist)
 
+        rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
+                   foot_stance, foot_clear, foot_zvel1, frequency_err, phase_err,
+                   joint_constraints, foot_slip, policy_smooth,twist]
         self.reward = basic_reward+ freq_reward + efficiency_reward
-        if self.reward<0:
-            #print(basic_reward)
-            #print(freq_reward)
-            #print(efficiency_reward)
-            pass
-        return self.reward
+
+        return self.reward,rewards
 
     def is_end(self):
         if p.getContactPoints(1,0,linkIndexA=-1)!=() or p.getContactPoints(1,0,linkIndexA=0)!=() or p.getContactPoints(1,0,linkIndexA=1)!=() or p.getContactPoints(1,0,linkIndexA=3)!=() or p.getContactPoints(1,0,linkIndexA=4)!=() or p.getContactPoints(1,0,linkIndexA=6)!=() or p.getContactPoints(1,0,linkIndexA=7)!=() or p.getContactPoints(1,0,linkIndexA=9)!=() or p.getContactPoints(1,0,linkIndexA=10)!=() :

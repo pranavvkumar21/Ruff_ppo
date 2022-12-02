@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers import Input,Dense
+from tensorflow.keras.layers import Input,Dense,BatchNormalization
 import tensorflow_probability as tfp
 import numpy as np
 import sys
@@ -56,9 +56,11 @@ def ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards):
 def actor_Model(Input_shape,output_size,load=True):
     inputs = Input(shape=(Input_shape))
     X = Dense(256, activation="relu", name="fc1")(inputs)
+    X = BatchNormalization(name = 'bn0')(X)
     X = Dense(256, activation="relu", name="fc2")(X)
+    X = BatchNormalization(name = 'bn1')(X)
     mu = Dense(output_size, activation="tanh", name="mean")(X)
-    sigma = Dense(output_size, activation="softplus", name="sigma")(X)
+    sigma = Dense(output_size, activation="sigmoid", name="sigma")(X)
     model = keras.Model(inputs=inputs, outputs=[mu,sigma])
     if load:
         try:
@@ -71,7 +73,9 @@ def actor_Model(Input_shape,output_size,load=True):
 def critic_Model(Input_shape,output_size,load=True):
     inputs = Input(shape=(Input_shape))
     X = Dense(256, activation="relu")(inputs)
+    X = BatchNormalization(name = 'bn0')(X)
     X = Dense(256, activation="relu")(X)
+    #X = BatchNormalization(name = 'bn1')(X)
     X = Dense(output_size)(X)
     model = keras.Model(inputs=inputs, outputs=X)
     if load:
@@ -82,7 +86,11 @@ def critic_Model(Input_shape,output_size,load=True):
             print("unable to load critic weights")
     return model
 
-def save_model(actor,critic):
+def save_model(actor,critic,best=0):
     actor.save_weights("../model/ppo_actor.h5")
     critic.save_weights("../model/ppo_critic.h5")
     print("model saved")
+    if best:
+        actor.save_weights("../model/ppo_actor_w.h5")
+        critic.save_weights("../model/ppo_critic_w.h5")
+        print("best model saved")

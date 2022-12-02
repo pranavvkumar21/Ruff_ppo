@@ -5,11 +5,11 @@ from ruff import *
 import gc
 
 tfd = tfp.distributions
-LOAD = True
+LOAD = False
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 30000
-MINIBATCH_SIZE = 3000
+MINIBATCH_SIZE = 6000
 ppo_epochs = 3
 timestep =1.0/240.0
 num_inputs = (60,)
@@ -19,19 +19,26 @@ lmbda = 0.95
 critic_discount = 0.5
 clip_range = 0.2
 entropy = 0.0025
-kf = 0
-ke = 0
-kd = 1
+kc = 0.0000002
+kd = 0.999993
 act_loss=0
 crit_loss=0
-
+max_reward = float("-inf")
+req_step=0
 bullet_file = "../model/test_ppo.bullet"
-log_file = "ppo_ruff_logfile.csv"
-reward_log = 'reward_logfile.csv'
+log_file = "../logs/ppo_ruff_logfile.csv"
+reward_log = "../logs/ruff_reward_log.csv"
 graph_count = 0
+reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance",
+           "foot_stance", "foot_clear","foot_zvel", "frequency_err", "phase_err",
+           "joint_constraints", "foot_slip", "policy_smooth","twist"]
+"""
+if LOAD == True:
+    for i in range(2845608):
+        kc = kc**kd
+"""
+#kc= 0.9999
 
-dummy_n = np.zeros((1, 1, 16))
-dummy_1 = np.zeros((1, 1, 1))
 
 class buffer:
     def __init__(self,max_len,batch_size):
@@ -85,10 +92,24 @@ class buffer:
 def log_episode(log_file,episode,episode_reward,step,act_loss=0,crit_loss=0,new = False):
     data = [[episode,episode_reward,step,act_loss,crit_loss]]
     if new:
-        os.remove(log_file)
+        try:
+            os.remove(log_file)
+        except:
+            print("no log file found")
     with open(log_file, 'a', newline="") as file:
         csvwriter = csv.writer(file) # 2. create a csvwriter object
         csvwriter.writerows(data) # 5. write the rest of the data
+def log_reward(reward_log,data,new=False):
+    if new:
+        try:
+            os.remove(reward_log)
+        except:
+            print("reward log file not found")
+    else:
+        data = data.tolist()
+    with open(reward_log, 'a', newline="") as file:
+        csvwriter = csv.writer(file) # 2. create a csvwriter object
+        csvwriter.writerow(data) # 5. write the rest of the data
 
 def check_log(filename):
     files = os.listdir("../logs/")
@@ -103,10 +124,12 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     eps_critic_value = []
     eps_log_probs = []
     masks=[]
+    rewards=[]
     for step in range(STEPS_PER_EPISODE):
         state_curr = ru.get_state()
 
         mu,sigma = actor([state_curr])
+        #print(sigma)
 
         critic_value = critic(state_curr)
         pos_inc, freq, actions, log_probs = ru.action_select(mu,sigma)
@@ -118,8 +141,10 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
         ru.move()
         p.stepSimulation()
         new_state = ru.get_state()
-        reward = ru.get_reward(episode,step)
-
+        global kc, kd
+        kc = kc**kd
+        reward,re = ru.get_reward(episode,step,kc)
+        rewards.append(re)
         eps_states.append(state_curr)
         eps_actions.append(np.array(actions).reshape((1,16)))
         eps_log_probs.append(log_probs)
@@ -132,6 +157,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
             break
         else:
             masks.append(1)
+    rew_mean = np.mean(np.array(rewards),axis=0)
     critic_value = critic(new_state)
     eps_critic_value.append(critic_value)
     ret,adv = get_advantages(eps_critic_value, masks, eps_rewards)
@@ -141,12 +167,13 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode):
     eps_critic_value = np.concatenate(eps_critic_value[:-1],axis=0)
     eps_log_probs = np.concatenate(eps_log_probs,axis=0)
     ret = np.concatenate(ret,axis=0)
+    eps_states = (eps_states-np.mean(eps_states,0))/(np.std(eps_states,0)+1e-10)
     rubuff.append(eps_states,eps_actions,eps_rewards,eps_critic_value,eps_log_probs,ret,adv)
-    return step
+    return step,rew_mean
 
 if __name__=="__main__":
     filename =check_log(filename)
-    ru = ruff(id,kf,ke)
+    ru = ruff(id)
     actor = actor_Model(num_inputs, n_actions,load=LOAD)
     critic = critic_Model(num_inputs, 1,load=LOAD)
     try:
@@ -161,25 +188,33 @@ if __name__=="__main__":
     for episode in range(NUM_EPISODES ):
         if episode == 0:
             log_episode(log_file,"episode","avg_eps_reward","step","act_loss","crit_loss",True)
+            log_reward(reward_log,reward_list,new=1)
         reset_world(bullet_file)
         gc.collect()
-        ru = ruff(id,kf,ke)
-        step = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
-        rubuff.states = (rubuff.states -np.mean(rubuff.states,axis=0))/(np.std(rubff.states)+1e-10)
+        ru = ruff(id)
+        step,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ru,episode)
+        req_step+=step
         episode_reward = np.sum(rubuff.rewards[-step:])
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
-
+        print("kc: "+str(kc))
         if len(rubuff)==max_buffer:
-            for i in range(ppo_epochs):
+            if req_step>=100:
+                for i in range(ppo_epochs):
 
-                for states,logprobs,actions,returns,advantages,rewards in rubuff.batch_gen():
+                    for states,logprobs,actions,returns,advantages,rewards in rubuff.batch_gen():
 
-                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
+                        act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
 
-                graph_count+=1
-            save_model(actor,critic)
+                    graph_count+=1
+                save_model(actor,critic)
+                req_step=0
+            if episode_reward>=max_reward:
+                save_model(actor,critic,1)
+                max_reward = episode_reward
+
         else:
             print("buffer size = "+str(len(rubuff)))
         log_episode(log_file,episode,episode_reward/step,step,float(act_loss),float(crit_loss))
+        log_reward(reward_log,rew_mean,0)
 
     close_world()
