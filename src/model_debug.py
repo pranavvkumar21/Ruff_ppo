@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from ruff import *
 from math import radians,degrees
+id  = setup_world(3)
 print(id)
 STEPS = 1000
 angle = [0]*12
