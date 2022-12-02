@@ -41,8 +41,16 @@ def setup_world(n_actors):
     p.setGravity(0,0,-10)
     planeId = p.loadURDF("plane.urdf")
     ids = []
+    max_row = 3
+    c=0
+    d = 0
     for i in range(n_actors):
-        startPos = [0,i*3,0.4]
+        print(i)
+        if d>=max_row:
+            c-=1
+            d=0
+        startPos = [c*3,d*3,0.4]
+        d+=1
         startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
         boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)
         p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
