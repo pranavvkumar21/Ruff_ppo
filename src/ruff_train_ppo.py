@@ -3,7 +3,7 @@
 from model_ppo import *
 from ruff import *
 import gc
-
+import time
 tfd = tfp.distributions
 LOAD = False
 NUM_EPISODES = 200_000
@@ -32,7 +32,7 @@ graph_count = 0
 reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance",
            "foot_stance", "foot_clear","foot_zvel", "frequency_err", "phase_err",
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
-n_actors = 5
+n_actors = 10
 
 class buffer:
     def __init__(self,max_len,batch_size):
@@ -122,9 +122,10 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
     rets = [[] for i in range(len(ruff_s))]
     advs = [[] for i in range(len(ruff_s))]
     end_flag = [0 for i in range(len(ruff_s))]
+    start_t = time.time()
     for step in range(STEPS_PER_EPISODE):
         print(step)
-        print(end_flag)
+        #print(end_flag)
         global kc, kd
         kc = kc**kd
         for i,ru in enumerate(ruff_s):
@@ -180,22 +181,21 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
             rets[i].append(ret)
             advs[i].append(adv)
 
-    eps_states = np.concatenate([np.concatenate(st,axis=0) for st in eps_states],axis=0)
-    print(eps_states.shape)
-    eps_actions = np.concatenate([np.concatenate(act,axis=0) for act in eps_actions],axis=0)
-    eps_rewards = np.concatenate([np.concatenate(rew,axis=0) for rew in eps_rewards],axis=0)
-    eps_critic_value = np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0)
-    eps_log_probs = np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)
-    rets = np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0)
-    advs = np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)
-    print(rets.shape)
-    print(advs.shape)
-    eps_states = (eps_states-np.mean(eps_states,0))/(np.std(eps_states,0)+1e-10)
-    rubuff.append(eps_states,eps_actions,eps_rewards,eps_critic_value,eps_log_probs,ret,adv)
-    return step,0
+    rubuff.states = np.concatenate([np.concatenate(st,axis=0) for st in eps_states],axis=0)
+    rubuff.actions = np.concatenate([np.concatenate(act,axis=0) for act in eps_actions],axis=0)
+    rubuff.rewards = np.concatenate([np.concatenate(rew,axis=0) for rew in eps_rewards],axis=0)
+    rubuff.values = np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0)
+    rubuff.logprobs = np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)
+    rubuff.returns = np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))
+    rubuff.advantages = np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)
+
+    rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
+    #rubuff.append(eps_states,eps_actions,eps_rewards,eps_critic_value,eps_log_probs,ret,adv)
+    print(" time is {:.1f}".format(time.time()-start_t))
+    return step,[0]
 
 if __name__=="__main__":
-    id  = setup_world(5)
+    id  = setup_world(n_actors)
     filename =check_log(filename)
     ruff_s = [ruff(i) for i in id]
     actor = actor_Model(num_inputs, n_actions,load=LOAD)
@@ -212,7 +212,7 @@ if __name__=="__main__":
         ruff_s = [ruff(i) for i in id]
         step,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode)
         req_step+=step
-        episode_reward = np.sum(rubuff.rewards[-step:])
+        episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         print("kc: "+str(kc))
         if len(rubuff)==max_buffer:
@@ -233,6 +233,6 @@ if __name__=="__main__":
         else:
             print("buffer size = "+str(len(rubuff)))
         log_episode(log_file,episode,episode_reward/step,step,float(act_loss),float(crit_loss))
-        log_reward(reward_log,rew_mean,0)
+        #log_reward(reward_log,rew_mean,0)
 
     close_world()
