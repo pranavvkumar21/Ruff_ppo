@@ -31,11 +31,11 @@ reward_log = 'reward_logfile.csv'
 discounted_sum = 0
 dummy_n = np.zeros((1, 1, 16))
 dummy_1 = np.zeros((1, 1, 1))
-client_mode = p.DIRECT
+#client_mode = p.GUI
 tfd = tfp.distributions
 
 
-def setup_world(n_actors):
+def setup_world(n_actors,client_mode):
     physicsClient = p.connect(client_mode)##or p.DIRECT for no    n-graphical version
     p.setAdditionalSearchPath(pybullet_data.getDataPath()) #optionally
     p.setGravity(0,0,-10)
@@ -72,8 +72,9 @@ def close_world():
 class ruff:
     def __init__(self, id):
         self.id = id
-        self.command = [0.6 , 1e-10, 1e-10] #3 commands for motion
-
+        self.command = [ 1,1e-10,1e-10] #3 commands for motion
+        #self.command[np.random.randint(2)+1] = np.random.rand()
+        #print(self.command)
         self.num_joints = p.getNumJoints(self.id)
         self.joint_names = {}
         for i in range(self.num_joints):
@@ -240,8 +241,8 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity+ Balance
-        freq_reward = kc* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
+        basic_reward = forward_velocity + lateral_velocity + angular_velocity
+        freq_reward = kc* (Balance+foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
         efficiency_reward = kc*( joint_constraints  + foot_slip + policy_smooth+twist)
 
         rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
