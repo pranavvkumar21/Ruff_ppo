@@ -16,12 +16,13 @@ def animate(i):
     df = pd.read_csv(log_file)
     xar = df["episode"].values
     yar_eps = df["avg_eps_reward"].values
-    steps = (df["step"].values)//10
+    steps = (df["step"].values)
+    #yar_eps = yar_eps*steps
     ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=300)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
-    ax1.plot(xar,yar_eps)
-    ax1.plot(xar,ema_e)
+    ax1.plot(yar_eps)
+    ax1.plot(ema_e)
 
     steps = sum(df["step"].values)
     global step,maxy
@@ -29,13 +30,16 @@ def animate(i):
         step = steps
         print("number of steps: "+str(step/1e+6))
         print("-"*20)
-    if np.max(yar_eps)>maxy:
-        maxy = np.max(yar_eps)
-        print("new maximum reward: "+str(maxy))
-        maxx = np.argmax(yar_eps)
-        print("achieved at episode: "+str(maxx))
-        print("-"*20)
-        ax1.scatter([maxx],[maxy],c="r")
+    try:
+        if np.max(yar_eps)>maxy:
+            maxy = np.max(yar_eps)
+            print("new maximum reward: "+str(maxy))
+            maxx = np.argmax(yar_eps)
+            print("achieved at episode: "+str(maxx))
+            print("-"*20)
+            #ax1.scatter([maxy],c="r")
+    except:
+        pass
 #    plt.ylim(-100,10)
 ani = animation.FuncAnimation(fig, animate, interval=1000)
 plt.show()
