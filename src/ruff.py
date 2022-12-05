@@ -48,8 +48,8 @@ def setup_world(n_actors,client_mode):
         print(i)
         if d>=max_row:
             c-=1
-            d=0
-        startPos = [c*3,d*3,0.4]
+            #d=0
+        startPos = [0,d*3,0.4]
         d+=1
         startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
         boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)

@@ -6,9 +6,10 @@ import gc
 import time
 from sklearn.utils import shuffle
 
-client_mode = p.DIRECT
+client_mode = p.GUI
 tfd = tfp.distributions
 LOAD = True
+Train = False
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 30000
@@ -35,7 +36,7 @@ graph_count = 0
 reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance",
            "foot_stance", "foot_clear","foot_zvel", "frequency_err", "phase_err",
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
-n_actors = 9
+n_actors = 20
 
 class buffer:
     def __init__(self,max_len,batch_size):
@@ -202,22 +203,22 @@ if __name__=="__main__":
         episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         print("kc: "+str(kc)+"   curriculum reward: "+str(sum(rew_mean[4:])))
+        if Train:
+            for i in range(ppo_epochs):
 
-        for i in range(ppo_epochs):
+                for states,logprobs,actions,returns,advantages,rewards in rubuff.batch_gen():
 
-            for states,logprobs,actions,returns,advantages,rewards in rubuff.batch_gen():
+                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
 
-                act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
+                graph_count+=1
+            save_model(actor,critic)
+            if episode_reward>=max_reward:
+                save_model(actor,critic,1)
+                max_reward = episode_reward
 
-            graph_count+=1
-        save_model(actor,critic)
-        if episode_reward>=max_reward:
-            save_model(actor,critic,1)
-            max_reward = episode_reward
-
-        #print("buffer size = "+str(len(rubuff)))
-        log_episode(log_file,episode,episode_reward/step,step,float(act_loss),float(crit_loss))
-        log_reward(reward_log,rew_mean,0)
+            #print("buffer size = "+str(len(rubuff)))
+            log_episode(log_file,episode,episode_reward/step,step,float(act_loss),float(crit_loss))
+            log_reward(reward_log,rew_mean,0)
         print("Time elapsed: {:.1f}".format(time.time()-start_t))
 
     close_world()
