@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-c = 0.00000002
+c = 0.0017
 d = 0.9999994
+
 done = 0
 counter = 0
 while not done:
