@@ -6,16 +6,14 @@ import gc
 import time
 from sklearn.utils import shuffle
 
-client_mode = p.GUI
-tfd = tfp.distributions
-LOAD = True
-Train = False
-NUM_EPISODES = 200_000
-STEPS_PER_EPISODE = 1000
-max_buffer = 30000
-MINIBATCH_SIZE = 5000
-ppo_epochs = 5
+#----------pybullet configuration-------------------
+client_mode = p.DIRECT
 timestep =1.0/240.0
+bullet_file = "../model/test_ppo.bullet"
+n_actors = 9
+
+#-----------model configuration----------------------
+tfd = tfp.distributions
 num_inputs = (60,)
 n_actions = 16
 gamma= 0.992
@@ -23,20 +21,30 @@ lmbda = 0.95
 critic_discount = 0.5
 clip_range = 0.2
 entropy = 0.0025
-kc = 0.00000002
-kd = 0.9999994
-act_loss=0
-crit_loss=0
+
+#-----------log configuration------------------------
 max_reward = float("-inf")
-req_step=0
-bullet_file = "../model/test_ppo.bullet"
 log_file = "../logs/ppo_ruff_logfile.csv"
 reward_log = "../logs/ruff_reward_log.csv"
-graph_count = 0
 reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance",
            "foot_stance", "foot_clear","foot_zvel", "frequency_err", "phase_err",
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
-n_actors = 3
+
+#------------train configuration---------------------
+LOAD = True
+Train = True
+NUM_EPISODES = 200_000
+STEPS_PER_EPISODE = 1000
+max_buffer = 9000
+MINIBATCH_SIZE = 9000
+ppo_epochs = 10
+kc = 0.00000002
+kd = 0.9999994
+
+#kc override
+kc = 0.8979704707138826
+
+
 
 class buffer:
     def __init__(self,max_len,batch_size):
@@ -49,9 +57,15 @@ class buffer:
         self.returns = np.empty((0,1))
         self.max_len = max_len
         self.batch_size = batch_size
-
+    def clear(self):
+        self.states = np.empty((0,60))
+        self.rewards = np.empty((0,1))
+        self.actions = np.empty((0,16))
+        self.logprobs = np.empty((0,16))
+        self.values = np.empty((0,1))
+        self.advantages = np.empty((0,1))
+        self.returns = np.empty((0,1))
     def batch_gen(self):
-
         self.states,self.rewards,self.actions,self.logprobs,self.values,self.advantages = shuffle(self.states,self.rewards,self.actions,
                                                                                                   self.logprobs,self.values,self.advantages )
         n_batchs = (self.states.shape[0]//self.batch_size)+1
@@ -67,8 +81,7 @@ class buffer:
             yield state,log_prob,action,returns,advantages,rewards
 
     def __len__(self):
-        #print(len(self.masks))
-        return len(self.states)
+          return len(self.states)
 
 def log_episode(log_file,episode,episode_reward,step,act_loss=0,crit_loss=0,new = False):
     data = [[episode,episode_reward,step,act_loss,crit_loss]]
@@ -112,7 +125,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
     rews = [0]*13
 
     total_steps = 0
-    for step in range(STEPS_PER_EPISODE):
+    for step1 in range(STEPS_PER_EPISODE):
         if sum(end_flag)==4:
             break
         global kc, kd
@@ -139,7 +152,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
         for i,ru in enumerate(ruff_s):
             if not end_flag[i]:
                 new_state = ru.get_state()
-                reward,re = ru.get_reward(episode,step,kc)
+                reward,re = ru.get_reward(  kc)
                 eps_rewards[i].append(np.array(reward).reshape((1,1)))
                 for j in range(len(re)):
                     rews[j]+=re[j]
@@ -152,7 +165,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
                     ret,adv = get_advantages(eps_critic_value[i], masks[i], eps_rewards[i])
                     rets[i].append(ret)
                     advs[i].append(adv)
-                    total_steps+=step
+                    total_steps+=step1
 
                 elif not end_flag[i]:
                     masks[i].append(1)
@@ -165,15 +178,15 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
             ret,adv = get_advantages(eps_critic_value[i], masks[i], eps_rewards[i])
             rets[i].append(ret)
             advs[i].append(adv)
-            total_steps+=step
+            total_steps+=step1
 
-    rubuff.states = np.concatenate([np.concatenate(st,axis=0) for st in eps_states],axis=0)
-    rubuff.actions = np.concatenate([np.concatenate(act,axis=0) for act in eps_actions],axis=0)
-    rubuff.rewards = np.concatenate([np.concatenate(rew,axis=0) for rew in eps_rewards],axis=0)
-    rubuff.values = np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0)
-    rubuff.logprobs = np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)
-    rubuff.returns = np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))
-    rubuff.advantages = np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)
+    rubuff.states = np.concatenate([rubuff.states,np.concatenate([np.concatenate(st,axis=0) for st in eps_states],axis=0)],axis=0)
+    rubuff.actions = np.concatenate([rubuff.actions,np.concatenate([np.concatenate(act,axis=0) for act in eps_actions],axis=0)],axis=0)
+    rubuff.rewards = np.concatenate([rubuff.rewards,np.concatenate([np.concatenate(rew,axis=0) for rew in eps_rewards],axis=0)],axis=0)
+    rubuff.values = np.concatenate([rubuff.values,np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0)],axis=0)
+    rubuff.logprobs = np.concatenate([rubuff.logprobs,np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)],axis=0)
+    rubuff.returns = np.concatenate([rubuff.returns,np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))],axis=0)
+    rubuff.advantages = np.concatenate([rubuff.advantages,np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)],axis=0)
     rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
 
 
@@ -189,6 +202,7 @@ if __name__=="__main__":
 
     rubuff = buffer(max_buffer,MINIBATCH_SIZE)
     for episode in range(NUM_EPISODES ):
+        #
         start_t = time.time()
         if episode == 0:
             if not LOAD:
@@ -197,12 +211,22 @@ if __name__=="__main__":
             save_world(bullet_file)
         reset_world(bullet_file)
         gc.collect()
-        ruff_s = [ruff(i) for i in id]
-        step,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode)
-        req_step+=step
+        rubuff.clear()
+        #kc1 = kc
+        step = 0
+        while len(rubuff)<max_buffer:
+            ruff_s = [ruff(i) for i in id]
+
+            st,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode)
+            #kc = kc1
+            step+=st
+            reset_world(bullet_file)
+
+
         episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         print("kc: "+str(kc)+"   curriculum reward: "+str(sum(rew_mean[4:])))
+        print("buffer size = "+str(len(rubuff)))
         if Train:
             for i in range(ppo_epochs):
 
@@ -210,14 +234,13 @@ if __name__=="__main__":
 
                     act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
 
-                graph_count+=1
             save_model(actor,critic)
             if episode_reward>=max_reward:
                 save_model(actor,critic,1)
                 max_reward = episode_reward
 
-            #print("buffer size = "+str(len(rubuff)))
-            log_episode(log_file,episode,episode_reward/step,step,float(act_loss),float(crit_loss))
+            #
+            log_episode(log_file,episode,episode_reward/len(rubuff.rewards),step,float(act_loss),float(crit_loss))
             log_reward(reward_log,rew_mean,0)
         print("Time elapsed: {:.1f}".format(time.time()-start_t))
 

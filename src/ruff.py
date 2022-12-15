@@ -29,13 +29,11 @@ curDT = datetime.now()
 filename = "ruff_logfile"
 reward_log = 'reward_logfile.csv'
 discounted_sum = 0
-dummy_n = np.zeros((1, 1, 16))
-dummy_1 = np.zeros((1, 1, 1))
-<<<<<<< HEAD
-client_mode = p.DIRECT
-=======
+
+client_mode = p.GUI
+
 #client_mode = p.GUI
->>>>>>> multi-actor
+
 tfd = tfp.distributions
 
 
@@ -206,7 +204,7 @@ class ruff:
         log_probs = dist.log_prob(actions)
         return pos_inc,freq, actions,log_probs
 
-    def get_reward(self,episode,step,kc):
+    def get_reward(self,kc):
         c1 = 1.2
         c4 = 7.5
 

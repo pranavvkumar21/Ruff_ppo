@@ -18,7 +18,7 @@ def animate(i):
     yar_eps = df["avg_eps_reward"].values
     steps = (df["step"].values)
     #yar_eps = yar_eps*steps
-    ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=300)
+    ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=100)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
     ax1.plot(yar_eps)
@@ -29,6 +29,7 @@ def animate(i):
     if steps>step:
         step = steps
         print("number of steps: "+str(step/1e+6))
+        print("avg reward: "+str(yar_eps[-1]))
         print("-"*20)
     try:
         if np.max(yar_eps)>maxy:
