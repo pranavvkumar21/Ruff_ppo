@@ -17,6 +17,8 @@ def animate(i):
     xar = df["episode"].values
     yar_eps = df["avg_eps_reward"].values
     steps = (df["step"].values)
+    act_loss = df["act_loss"].values
+    crit_loss = df["crit_loss"].values
     #yar_eps = yar_eps*steps
     ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=100)
     ema_e = ema10_e.ema_indicator().values

@@ -74,7 +74,7 @@ def close_world():
 class ruff:
     def __init__(self, id):
         self.id = id
-        self.command = [ 1,1e-10,1e-10] #3 commands for motion
+        self.command = [0.4,1e-10,1e-10] #3 commands for motion
         #self.command[np.random.randint(2)+1] = np.random.rand()
         #print(self.command)
         self.num_joints = p.getNumJoints(self.id)
@@ -192,15 +192,18 @@ class ruff:
         actions = actions.numpy().tolist()[0][0]
         pos_inc = actions[0:12]
         for i in range(len(pos_inc)):
-            if pos_inc[i]<-0.33:
-                pos_inc[i]= -1*math.pi/180
-            elif pos_inc[i]<0.33:
-                pos_inc[i]= 1*math.pi/180
+            if pos_inc[i]<-1:
+                pos_inc[i]= (-1*math.pi/180)*5
+            elif pos_inc[i]<1:
+                pos_inc[i]= (1*math.pi/180)*5
             else:
-                pos_inc[i] = 0
+                pos_inc[i]= (pos_inc[i]*math.pi/180)*5
 
         #pos_inc = [i*math.pi/90 for i in pos_inc]
         freq = np.abs(actions[12:])
+        for i in range(len(freq)):
+            if freq[i]>1:
+                freq[i]=1
         log_probs = dist.log_prob(actions)
         return pos_inc,freq, actions,log_probs
 
@@ -245,7 +248,7 @@ class ruff:
         joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
         basic_reward = forward_velocity + lateral_velocity + angular_velocity
         freq_reward = kc* (Balance+foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = kc*( joint_constraints  + foot_slip + policy_smooth+twist)
+        efficiency_reward = 1*( joint_constraints  + foot_slip + policy_smooth+twist)
 
         rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
                    foot_stance, foot_clear, foot_zvel1, frequency_err, phase_err,
