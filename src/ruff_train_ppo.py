@@ -7,10 +7,10 @@ import time
 from sklearn.utils import shuffle
 
 #----------pybullet configuration-------------------
-client_mode = p.DIRECT
+client_mode = p.GUI
 timestep =1.0/240.0
 bullet_file = "../model/test_ppo.bullet"
-n_actors = 9
+n_actors = 1
 
 #-----------model configuration----------------------
 tfd = tfp.distributions
@@ -32,17 +32,17 @@ reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance
 
 #------------train configuration---------------------
 LOAD = True
-Train = True
+Train = False
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 9000
-MINIBATCH_SIZE = 9000
-ppo_epochs = 10
-kc = 0.00000002
-kd = 0.9999994
+MINIBATCH_SIZE = 12000
+ppo_epochs = 5
+kc = 2e-10
+kd = 0.999994
 
 #kc override
-kc = 0.8979704707138826
+kc = 0.999999999999
 
 
 
@@ -147,7 +147,8 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
                 eps_log_probs[i].append(log_probs)
                 eps_critic_value[i].append(critic_value)
 
-        p.stepSimulation()
+        for i in range(3):
+            p.stepSimulation()
 
         for i,ru in enumerate(ruff_s):
             if not end_flag[i]:
@@ -174,6 +175,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
         if not end_flag[i]:
             new_state = ru.get_state()
             critic_value = critic(new_state)
+            masks[i][-1]=0
             eps_critic_value[i].append(critic_value)
             ret,adv = get_advantages(eps_critic_value[i], masks[i], eps_rewards[i])
             rets[i].append(ret)
@@ -187,7 +189,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
     rubuff.logprobs = np.concatenate([rubuff.logprobs,np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)],axis=0)
     rubuff.returns = np.concatenate([rubuff.returns,np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))],axis=0)
     rubuff.advantages = np.concatenate([rubuff.advantages,np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)],axis=0)
-    rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
+    #rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
 
 
     total_steps+=len(ruff_s)
@@ -220,6 +222,7 @@ if __name__=="__main__":
             st,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode)
             #kc = kc1
             step+=st
+            print(st)
             reset_world(bullet_file)
 
 
