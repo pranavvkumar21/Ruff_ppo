@@ -24,9 +24,9 @@ def animate(i):
         print(len(df))
         val = df_new[-1]
         print(np.sum(df_new[-1]))
-    yar_eps = df["forward_velocity"].values[500:]
-    lts = df["lateral_velocity"].values[500:]
-    ans = df["angular_velocity"].values[500:]
+    yar_eps = df["forward_velocity"].values
+    lts = df["lateral_velocity"].values
+    ans = df["angular_velocity"].values
 
     #steps = (df["step"].values)//10
     ema10_e = EMAIndicator(close=df["forward_velocity"],window=100)

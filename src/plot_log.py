@@ -18,13 +18,15 @@ def animate(i):
     yar_eps = df["avg_eps_reward"].values
     steps = (df["step"].values)
     act_loss = df["act_loss"].values
+
     crit_loss = df["crit_loss"].values
     #yar_eps = yar_eps*steps
     ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=100)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
-    ax1.plot(yar_eps)
-    ax1.plot(ema_e)
+    ax1.plot(crit_loss)
+    #ax1.plot(yar_eps)
+    #ax1.plot(ema_e)
 
     steps = sum(df["step"].values)
     global step,maxy

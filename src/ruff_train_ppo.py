@@ -7,10 +7,10 @@ import time
 from sklearn.utils import shuffle
 
 #----------pybullet configuration-------------------
-client_mode = p.GUI
+client_mode = p.DIRECT
 timestep =1.0/240.0
 bullet_file = "../model/test_ppo.bullet"
-n_actors = 1
+n_actors = 9
 
 #-----------model configuration----------------------
 tfd = tfp.distributions
@@ -31,18 +31,18 @@ reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
 
 #------------train configuration---------------------
-LOAD = True
-Train = False
+LOAD = False
+Train = True
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 9000
 MINIBATCH_SIZE = 12000
 ppo_epochs = 5
-kc = 2e-10
-kd = 0.999994
+kc = 2e-6
+kd = 0.9999996
 
 #kc override
-kc = 0.999999999999
+#kc = 3.74e-5
 
 
 
@@ -66,8 +66,8 @@ class buffer:
         self.advantages = np.empty((0,1))
         self.returns = np.empty((0,1))
     def batch_gen(self):
-        self.states,self.rewards,self.actions,self.logprobs,self.values,self.advantages = shuffle(self.states,self.rewards,self.actions,
-                                                                                                  self.logprobs,self.values,self.advantages )
+        self.states,self.rewards,self.actions,self.logprobs,self.values,self.advantages,self.returns = shuffle(self.states,self.rewards,self.actions,
+                                                                                                  self.logprobs,self.values,self.advantages,self.returns )
         n_batchs = (self.states.shape[0]//self.batch_size)+1
         idx = 0
         for i in range(n_batchs):
@@ -77,8 +77,9 @@ class buffer:
             returns = self.returns[idx:idx+self.batch_size,:]
             rewards = self.rewards[idx:idx+self.batch_size,:]
             advantages = self.advantages[idx:idx+self.batch_size,:]
+            values = self.values[idx:idx+self.batch_size,:]
             idx = idx+self.batch_size
-            yield state,log_prob,action,returns,advantages,rewards
+            yield state,log_prob,action,returns,advantages,rewards,values
 
     def __len__(self):
           return len(self.states)
@@ -216,26 +217,29 @@ if __name__=="__main__":
         rubuff.clear()
         #kc1 = kc
         step = 0
+        count_retries = 0
+
         while len(rubuff)<max_buffer:
             ruff_s = [ruff(i) for i in id]
 
             st,rew_mean = run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode)
             #kc = kc1
             step+=st
-            print(st)
+            count_retries+=1
             reset_world(bullet_file)
 
 
         episode_reward = np.sum(rubuff.rewards)
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         print("kc: "+str(kc)+"   curriculum reward: "+str(sum(rew_mean[4:])))
-        print("buffer size = "+str(len(rubuff)))
+        print("retries = "+str(count_retries))
+        print('mean number of steps = '+str(step/count_retries))
         if Train:
             for i in range(ppo_epochs):
 
-                for states,logprobs,actions,returns,advantages,rewards in rubuff.batch_gen():
+                for states,logprobs,actions,returns,advantages,rewards,values in rubuff.batch_gen():
 
-                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards)
+                    act_loss,crit_loss=ruff_train(actor,critic,states,logprobs,actions,returns,advantages,rewards,values)
 
             save_model(actor,critic)
             if episode_reward>=max_reward:

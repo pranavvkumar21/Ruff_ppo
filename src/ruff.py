@@ -194,7 +194,7 @@ class ruff:
         for i in range(len(pos_inc)):
             if pos_inc[i]<-1:
                 pos_inc[i]= (-1*math.pi/180)*5
-            elif pos_inc[i]<1:
+            elif pos_inc[i]>1:
                 pos_inc[i]= (1*math.pi/180)*5
             else:
                 pos_inc[i]= (pos_inc[i]*math.pi/180)*5
@@ -247,8 +247,8 @@ class ruff:
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
         basic_reward = forward_velocity + lateral_velocity + angular_velocity
-        freq_reward = kc* (Balance+foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = 1*( joint_constraints  + foot_slip + policy_smooth+twist)
+        freq_reward = kc*0* (Balance+foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
+        efficiency_reward = kc*( joint_constraints  + foot_slip + policy_smooth+twist)
 
         rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
                    foot_stance, foot_clear, foot_zvel1, frequency_err, phase_err,
