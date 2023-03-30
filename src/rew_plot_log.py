@@ -26,14 +26,14 @@ def animate(i):
         print(np.sum(df_new[-1]))
     yar_eps = df["forward_velocity"].values
     lts = df["lateral_velocity"].values
-    ans = df["angular_velocity"].values
+    ans = df["twist"].values
 
     #steps = (df["step"].values)//10
     ema10_e = EMAIndicator(close=df["forward_velocity"],window=100)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
-    ax1.plot(yar_eps)
-    ax1.plot(lts)
+    #ax1.plot(yar_eps)
+    #ax1.plot(lts)
     ax1.plot(ans)
     #ax1.plot(ema_e)
     #ax1.scatter(xar,steps,c="g")

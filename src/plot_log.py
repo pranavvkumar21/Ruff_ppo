@@ -24,9 +24,10 @@ def animate(i):
     ema10_e = EMAIndicator(close=df["avg_eps_reward"],window=100)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
-    ax1.plot(crit_loss)
-    #ax1.plot(yar_eps)
-    #ax1.plot(ema_e)
+    #ax1.plot(crit_loss)
+    plt.ylim(-0.5,0.5)
+    ax1.plot(yar_eps)
+    ax1.plot(ema_e)
 
     steps = sum(df["step"].values)
     global step,maxy

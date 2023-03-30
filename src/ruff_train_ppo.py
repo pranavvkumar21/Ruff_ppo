@@ -7,10 +7,10 @@ import time
 from sklearn.utils import shuffle
 
 #----------pybullet configuration-------------------
-client_mode = p.DIRECT
+client_mode = p.GUI
 timestep =1.0/240.0
 bullet_file = "../model/test_ppo.bullet"
-n_actors = 9
+n_actors = 1
 
 #-----------model configuration----------------------
 tfd = tfp.distributions
@@ -31,7 +31,7 @@ reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
 
 #------------train configuration---------------------
-LOAD = False
+LOAD = True
 Train = True
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
@@ -42,7 +42,7 @@ kc = 2e-6
 kd = 0.9999996
 
 #kc override
-#kc = 3.74e-5
+kc = 1
 
 
 
@@ -191,7 +191,8 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
     rubuff.returns = np.concatenate([rubuff.returns,np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))],axis=0)
     rubuff.advantages = np.concatenate([rubuff.advantages,np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)],axis=0)
     #rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
-
+    for r in range(len(rubuff.rewards)):
+        print(rubuff.rewards[r])
 
     total_steps+=len(ruff_s)
     return total_steps,[i/total_steps for i in rews]
@@ -229,7 +230,7 @@ if __name__=="__main__":
             reset_world(bullet_file)
 
 
-        episode_reward = np.sum(rubuff.rewards)
+        episode_reward = np.sum(rubuff.rewards)/count_retries
         print("episode: "+str(episode)+" steps: "+str(step)+" episode_reward: "+str(episode_reward))
         print("kc: "+str(kc)+"   curriculum reward: "+str(sum(rew_mean[4:])))
         print("retries = "+str(count_retries))
