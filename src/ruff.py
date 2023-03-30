@@ -160,7 +160,7 @@ class ruff:
 
     def phase_modulator(self):
         for i in range(len(self.rg_phase)):
-            self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*timestep)%(2*math.pi)
+            self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*3*timestep)%(2*math.pi)
             self.binary_phase[i] = True if self.rg_phase[i]<=math.pi else False #True if stance
 
     def update_target_pos(self,pos_inc):
@@ -193,11 +193,11 @@ class ruff:
         pos_inc = actions[0:12]
         for i in range(len(pos_inc)):
             if pos_inc[i]<-1:
-                pos_inc[i]= (-1*math.pi/180)*5
+                pos_inc[i]= (-1*math.pi/180)*2
             elif pos_inc[i]>1:
-                pos_inc[i]= (1*math.pi/180)*5
+                pos_inc[i]= (1*math.pi/180)*2
             else:
-                pos_inc[i]= (pos_inc[i]*math.pi/180)*5
+                pos_inc[i]= (pos_inc[i]*math.pi/180)*2
 
         #pos_inc = [i*math.pi/90 for i in pos_inc]
         freq = np.abs(actions[12:])
