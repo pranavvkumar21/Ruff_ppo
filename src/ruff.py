@@ -30,13 +30,10 @@ filename = "ruff_logfile"
 reward_log = 'reward_logfile.csv'
 discounted_sum = 0
 
-client_mode = p.GUI
-
-#client_mode = p.GUI
 
 tfd = tfp.distributions
 
-
+urdf_constraint = [0,math.pi/6,math.pi/6]*4
 def setup_world(n_actors,client_mode):
     physicsClient = p.connect(client_mode)##or p.DIRECT for no    n-graphical version
     p.setAdditionalSearchPath(pybullet_data.getDataPath()) #optionally
@@ -81,6 +78,7 @@ class ruff:
         self.joint_names = {}
         for i in range(self.num_joints):
             self.joint_names[str(p.getJointInfo(self.id,i)[1])[2:-1]] = i
+
         self.n_joints = [i for i in range(self.num_joints) ]
         self.getjointinfo()    #12 joint position and 12 joint velocity
         self.getvelocity()     #6 base velocity velocity
@@ -166,10 +164,10 @@ class ruff:
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
             self.target_pos[i]+=pos_inc[i]
-            if self.target_pos[i]>2*math.pi:
-                self.target_pos[i]=2*math.pi
-            if self.target_pos[i]<-2*math.pi:
-                self.target_pos[i]=-2*math.pi
+            if self.target_pos[i]>urdf_constraint[i]:
+                self.target_pos[i]=urdf_constraint[i]
+            if self.target_pos[i]<-urdf_constraint[i]:
+                self.target_pos[i]=-urdf_constraint[i]
 
     def get_contact(self):
         self.is_contact = [p.getContactPoints(self.id,0,linkIndexA=2)!=(),p.getContactPoints(self.id,0,linkIndexA=5)!=(),

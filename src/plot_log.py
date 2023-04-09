@@ -25,7 +25,7 @@ def animate(i):
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
     #ax1.plot(crit_loss)
-    plt.ylim(-0.5,0.5)
+    #plt.ylim(-0.5,0.5)
     ax1.plot(yar_eps)
     ax1.plot(ema_e)
 
@@ -33,7 +33,7 @@ def animate(i):
     global step,maxy
     if steps>step:
         step = steps
-        print("number of steps: "+str(step/1e+6))
+        print("number of steps: "+str(step/1e+6)+" million steps")
         print("avg reward: "+str(yar_eps[-1]))
         print("-"*20)
     try:
