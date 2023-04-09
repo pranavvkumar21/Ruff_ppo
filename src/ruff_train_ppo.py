@@ -7,10 +7,10 @@ import time
 from sklearn.utils import shuffle
 
 #----------pybullet configuration-------------------
-client_mode = p.GUI
+client_mode = p.DIRECT
 timestep =1.0/240.0
 bullet_file = "../model/test_ppo.bullet"
-n_actors = 1
+n_actors = 9
 
 #-----------model configuration----------------------
 tfd = tfp.distributions
@@ -42,7 +42,7 @@ kc = 2e-6
 kd = 0.9999996
 
 #kc override
-kc = 1
+kc = 0.3554528455689768
 
 
 
@@ -191,8 +191,7 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
     rubuff.returns = np.concatenate([rubuff.returns,np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))],axis=0)
     rubuff.advantages = np.concatenate([rubuff.advantages,np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)],axis=0)
     #rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
-    for r in range(len(rubuff.rewards)):
-        print(rubuff.rewards[r])
+
 
     total_steps+=len(ruff_s)
     return total_steps,[i/total_steps for i in rews]

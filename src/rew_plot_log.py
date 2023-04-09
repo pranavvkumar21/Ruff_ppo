@@ -32,9 +32,9 @@ def animate(i):
     ema10_e = EMAIndicator(close=df["forward_velocity"],window=100)
     ema_e = ema10_e.ema_indicator().values
     ax1.clear()
-    #ax1.plot(yar_eps)
+    ax1.plot(yar_eps)
     #ax1.plot(lts)
-    ax1.plot(ans)
+    #ax1.plot()
     #ax1.plot(ema_e)
     #ax1.scatter(xar,steps,c="g")
     global maxy
