@@ -10,7 +10,7 @@ from sklearn.utils import shuffle
 client_mode = p.DIRECT
 timestep =1.0/240.0
 bullet_file = "../model/test_ppo.bullet"
-n_actors = 9
+n_actors = 32
 
 #-----------model configuration----------------------
 tfd = tfp.distributions
@@ -31,8 +31,8 @@ reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance
            "joint_constraints", "foot_slip", "policy_smooth","twist"]
 
 #------------train configuration---------------------
-LOAD = True
-Train = True
+LOAD = False
+Train = False
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 9000
@@ -127,26 +127,40 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
 
     total_steps = 0
     for step1 in range(STEPS_PER_EPISODE):
+        print(step1)
         if sum(end_flag)==4:
             break
         global kc, kd
         kc = kc**kd
+        state_curr = []
+        for i,ru in enumerate(ruff_s):
+            state_curr.append(ru.get_state())
+        state_curr = np.concatenate(state_curr)
+        mu, sigma = actor(state_curr)
+        critic_value = critic(state_curr)
+        dist = tfd.Normal(loc=mu, scale=sigma)
+        actions = dist.sample(1)
+        actions = actions.numpy()[0]
+        pos_inc = actions[:,0:12]
+        pos_inc[pos_inc<-1] = -1
+        pos_inc[pos_inc>1] = 1
+        pos_inc = (pos_inc*math.pi/180)*2
+        freq = np.abs(actions[:,12:])
+        freq[freq>1]=1
+        log_probs = dist.log_prob(actions)
+        #print(critic_value.shape)
         for i,ru in enumerate(ruff_s):
             if not end_flag[i] :
-                state_curr = ru.get_state()
-                mu,sigma = actor([state_curr])
-                critic_value = critic(state_curr)
-                pos_inc, freq, actions, log_probs = ru.action_select(mu,sigma)
-                ru.set_frequency(freq)
+                ru.set_frequency(freq[i])
                 ru.phase_modulator()
-                ru.update_policy(actions)
-                ru.update_target_pos(pos_inc)
+                ru.update_policy(actions[i])
+                ru.update_target_pos(pos_inc[i])
                 ru.move()
 
-                eps_states[i].append(state_curr)
-                eps_actions[i].append(np.array(actions).reshape((1,16)))
-                eps_log_probs[i].append(log_probs)
-                eps_critic_value[i].append(critic_value)
+                eps_states[i].append(state_curr[i].reshape((1,60)))
+                eps_actions[i].append(np.array(actions[i]).reshape((1,16)))
+                eps_log_probs[i].append(log_probs[i])
+                eps_critic_value[i].append(critic_value[i])
 
         for i in range(3):
             p.stepSimulation()
@@ -182,12 +196,20 @@ def run_episode(actor,critic,STEPS_PER_EPISODE,rubuff,ruff_s,episode):
             rets[i].append(ret)
             advs[i].append(adv)
             total_steps+=step1
-
+    test = [np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value]
+    for i in test:
+        print(i.shape)
+    test = np.concatenate(test)
+    print(test.shape)
     rubuff.states = np.concatenate([rubuff.states,np.concatenate([np.concatenate(st,axis=0) for st in eps_states],axis=0)],axis=0)
     rubuff.actions = np.concatenate([rubuff.actions,np.concatenate([np.concatenate(act,axis=0) for act in eps_actions],axis=0)],axis=0)
     rubuff.rewards = np.concatenate([rubuff.rewards,np.concatenate([np.concatenate(rew,axis=0) for rew in eps_rewards],axis=0)],axis=0)
-    rubuff.values = np.concatenate([rubuff.values,np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0)],axis=0)
-    rubuff.logprobs = np.concatenate([rubuff.logprobs,np.concatenate([np.concatenate(lp,axis=0) for lp in eps_log_probs],axis=0)],axis=0)
+    print(rubuff.rewards.shape)
+    rubuff.values = np.concatenate([np.concatenate(cri[:-1],axis=0) for cri in eps_critic_value],axis=0).reshape((-1,1))
+    print(rubuff.values.shape)
+    rubuff.logprobs = [np.concatenate(lp,axis=0) for lp in eps_log_probs]
+    print(rubuff.logprobs[0].shape)
+    print(rubuff.logprobs.shape)
     rubuff.returns = np.concatenate([rubuff.returns,np.concatenate([np.concatenate(r,axis=0) for r in rets],axis=0).reshape((-1,1))],axis=0)
     rubuff.advantages = np.concatenate([rubuff.advantages,np.concatenate([np.concatenate(a,axis=0) for a in advs],axis=0)],axis=0)
     #rubuff.states = (rubuff.states-np.mean(rubuff.states,0))/(np.std(rubuff.states,0)+1e-10)
