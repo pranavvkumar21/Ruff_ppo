@@ -19,7 +19,7 @@ for step in range(STEPS):
     #time.sleep(0.001)
     for ru in ruff_s:
 
-        #print(ru.id)
+        print(ru.id)
         ru.get_state()
         ru.target_pos[2] = angle
         ru.move()
@@ -27,6 +27,6 @@ for step in range(STEPS):
         #print(ru.joint_names)
         #print([degrees(i)//1 for i in ru.joint_position])
     p.stepSimulation()
-    print(step)
+    #print(step)
 end_t = time.time()
 print(end_t-start_t)
