@@ -30,7 +30,8 @@ filename = "ruff_logfile"
 reward_log = 'reward_logfile.csv'
 discounted_sum = 0
 
-
+import os
+print(os.listdir("../urdf/"))
 tfd = tfp.distributions
 
 urdf_constraint = [0,math.pi/6,math.pi/6]*4
