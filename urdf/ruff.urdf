@@ -36,7 +36,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/base_link.STL" />
+          filename="../meshes/base_link.STL" />
       </geometry>
       <material
         name="">
@@ -50,7 +50,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/base_link.STL" />
+          filename="../meshes/base_link.STL" />
       </geometry>
     </collision>
   </link>
@@ -76,7 +76,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FR1.STL" />
+          filename="../meshes/FR1.STL" />
       </geometry>
       <material
         name="">
@@ -90,7 +90,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FR1.STL" />
+          filename="../meshes/FR1.STL" />
       </geometry>
     </collision>
   </link>
@@ -134,7 +134,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FR2.STL" />
+          filename="../meshes/FR2.STL" />
       </geometry>
       <material
         name="">
@@ -148,7 +148,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FR2.STL" />
+          filename="../meshes/FR2.STL" />
       </geometry>
     </collision>
   </link>
@@ -192,7 +192,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FR3.STL" />
+          filename="../meshes/FR3.STL" />
       </geometry>
       <material
         name="">
@@ -206,7 +206,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FR3.STL" />
+          filename="../meshes/FR3.STL" />
       </geometry>
     </collision>
   </link>
@@ -250,7 +250,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FL1.STL" />
+          filename="../meshes/FL1.STL" />
       </geometry>
       <material
         name="">
@@ -264,7 +264,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FL1.STL" />
+          filename="../meshes/FL1.STL" />
       </geometry>
     </collision>
   </link>
@@ -308,7 +308,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FL2.STL" />
+          filename="../meshes/FL2.STL" />
       </geometry>
       <material
         name="">
@@ -322,7 +322,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FL2.STL" />
+          filename="../meshes/FL2.STL" />
       </geometry>
     </collision>
   </link>
@@ -366,7 +366,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FL3.STL" />
+          filename="../meshes/FL3.STL" />
       </geometry>
       <material
         name="">
@@ -380,7 +380,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/FL3.STL" />
+          filename="../meshes/FL3.STL" />
       </geometry>
     </collision>
   </link>
@@ -424,7 +424,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RR1.STL" />
+          filename="../meshes/RR1.STL" />
       </geometry>
       <material
         name="">
@@ -438,7 +438,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RR1.STL" />
+          filename="../meshes/RR1.STL" />
       </geometry>
     </collision>
   </link>
@@ -482,7 +482,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RR2.STL" />
+          filename="../meshes/RR2.STL" />
       </geometry>
       <material
         name="">
@@ -496,7 +496,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RR2.STL" />
+          filename="../meshes/RR2.STL" />
       </geometry>
     </collision>
   </link>
@@ -540,7 +540,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RR3.STL" />
+          filename="../meshes/RR3.STL" />
       </geometry>
       <material
         name="">
@@ -554,7 +554,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RR3.STL" />
+          filename="../meshes/RR3.STL" />
       </geometry>
     </collision>
   </link>
@@ -598,7 +598,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RL1.STL" />
+          filename="../meshes/RL1.STL" />
       </geometry>
       <material
         name="">
@@ -612,7 +612,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RL1.STL" />
+          filename="../meshes/RL1.STL" />
       </geometry>
     </collision>
   </link>
@@ -656,7 +656,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RL2.STL" />
+          filename="../meshes/RL2.STL" />
       </geometry>
       <material
         name="">
@@ -670,7 +670,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RL2.STL" />
+          filename="../meshes/RL2.STL" />
       </geometry>
     </collision>
   </link>
@@ -714,7 +714,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RL3.STL" />
+          filename="../meshes/RL3.STL" />
       </geometry>
       <material
         name="">
@@ -728,7 +728,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="../ruff/meshes/RL3.STL" />
+          filename="../meshes/RL3.STL" />
       </geometry>
     </collision>
   </link>

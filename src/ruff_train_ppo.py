@@ -7,10 +7,10 @@ import time
 from sklearn.utils import shuffle
 
 #----------pybullet configuration-------------------
-client_mode = p.DIRECT
+client_mode = p.GUI
 timestep =1.0/240.0
 bullet_file = "../model/test_ppo.bullet"
-n_actors = 32
+n_actors = 1
 
 #-----------model configuration----------------------
 tfd = tfp.distributions
@@ -32,7 +32,7 @@ reward_list = ["forward_velocity","lateral_velocity","angular_velocity","Balance
 
 #------------train configuration---------------------
 LOAD = False
-Train = False
+Train = True
 NUM_EPISODES = 200_000
 STEPS_PER_EPISODE = 1000
 max_buffer = 9000
@@ -42,7 +42,7 @@ kc = 2e-6
 kd = 0.9999996
 
 #kc override
-kc = 0.3554528455689768
+#kc = 0.3554528455689768
 
 
 
