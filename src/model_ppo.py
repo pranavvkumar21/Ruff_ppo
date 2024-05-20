@@ -4,7 +4,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.layers import Input,Dense,BatchNormalization
 import tensorflow_probability as tfp
 import numpy as np
-import sys
+import sys, os
 import gc
 np.set_printoptions(threshold=sys.maxsize)
 import keras.backend as K
@@ -87,11 +87,11 @@ def critic_Model(Input_shape,output_size,load=True):
             print("unable to load critic weights")
     return model
 
-def save_model(actor,critic,best=0):
-    actor.save_weights("../model/ppo_actor.h5")
-    critic.save_weights("../model/ppo_critic.h5")
+def save_model(actor,critic,save_path ="../model", best=0):
+    actor.save_weights(os.path.join(save_path,"ppo_actor.h5"))
+    critic.save_weights(os.path.join(save_path,"ppo_critic.h5"))
     print("model saved")
     if best:
-        actor.save_weights("../model/ppo_actor_w.h5")
-        critic.save_weights("../model/ppo_critic_w.h5")
+        actor.save_weights(os.path.join(save_path,"ppo_actor_w.h5"))
+        critic.save_weights(os.path.join(save_path,"ppo_critic_w.h5"))
         print("best model saved")

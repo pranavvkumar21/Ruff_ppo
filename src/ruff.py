@@ -18,7 +18,7 @@ import random
 
 NUM_EPISODES = 100_000
 STEPS_PER_EPISODE = 3_000
-timestep =1.0/240.0
+timestep =1.0/100.0
 num_inputs = (60,)
 gamma= 0.992
 lmbda = 0.95
@@ -31,7 +31,8 @@ reward_log = 'reward_logfile.csv'
 discounted_sum = 0
 
 import os
-print(os.listdir("../urdf/"))
+urdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"urdf")
+print(os.listdir(os.path.dirname(os.path.abspath(__file__))))
 tfd = tfp.distributions
 
 urdf_constraint = [0,math.pi/6,math.pi/6]*4
@@ -52,7 +53,7 @@ def setup_world(n_actors,client_mode):
         startPos = [0,d*3,0.4]
         d+=1
         startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-        boxId = p.loadURDF("../urdf/ruff.urdf",startPos, startOrientation)
+        boxId = p.loadURDF(urdf_path+"/ruff.urdf",startPos, startOrientation)
         p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
         ids.append(boxId)
     return ids
@@ -70,9 +71,10 @@ def close_world():
 
 
 class ruff:
-    def __init__(self, id):
+    def __init__(self, id,command):
         self.id = id
-        self.command = [0.4,1e-10,1e-10] #3 commands for motion
+        #self.command = [1e-10,1.5,1e-10] #3 commands for motion
+        self.command = command
         #self.command[np.random.randint(2)+1] = np.random.rand()
         #print(self.command)
         self.num_joints = p.getNumJoints(self.id)
@@ -165,10 +167,8 @@ class ruff:
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
             self.target_pos[i]+=pos_inc[i]
-            if self.target_pos[i]>urdf_constraint[i]:
-                self.target_pos[i]=urdf_constraint[i]
-            if self.target_pos[i]<-urdf_constraint[i]:
-                self.target_pos[i]=-urdf_constraint[i]
+
+        return self.target_pos
 
     def get_contact(self):
         self.is_contact = [p.getContactPoints(self.id,0,linkIndexA=2)!=(),p.getContactPoints(self.id,0,linkIndexA=5)!=(),
@@ -176,9 +176,10 @@ class ruff:
     def get_height(self):
         self.foot_height = [p.getClosestPoints(self.id,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=11)[0][8]]
     def move(self):
-        max_force = [100]*12
-        p.setJointMotorControlArray(self.id,self.n_joints,controlMode=p.POSITION_CONTROL,
-                                    targetPositions = self.target_pos,forces=max_force)
+        max_force = 100
+        for i in range(len(self.n_joints)):
+            p.setJointMotorControl2(self.id,self.n_joints[i],controlMode=p.POSITION_CONTROL,
+                                    targetPosition = self.target_pos[i],force=max_force)
     def set_frequency(self,freq):
         self.rg_freq = freq
 
@@ -206,7 +207,7 @@ class ruff:
         log_probs = dist.log_prob(actions)
         return pos_inc,freq, actions,log_probs
 
-    def get_reward(self,kc):
+    def get_reward(self,kc=1):
         c1 = 1.2
         c4 = 7.5
 
@@ -246,8 +247,8 @@ class ruff:
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
         basic_reward = forward_velocity + lateral_velocity + angular_velocity
-        freq_reward = kc*0* (Balance+foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = kc*( joint_constraints  + foot_slip + policy_smooth+twist)
+        freq_reward = kc*0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
+        efficiency_reward = kc*( Balance+joint_constraints  + foot_slip + policy_smooth+twist)
 
         rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
                    foot_stance, foot_clear, foot_zvel1, frequency_err, phase_err,
