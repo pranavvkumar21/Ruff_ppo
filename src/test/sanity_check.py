@@ -74,7 +74,7 @@ for i in range(episodes):
         mu,sigma = actor(state)
         critic_value = critic(state)
         action,log_prob = action_select(mu,sigma)
-        state_,reward,done,_ = env.step(action)
+        state_,reward,done,_,_ = env.step(action)
         state_ = np.array(state_).reshape((1,-1,))
         buff.append(state,action,reward,critic_value,log_prob,not done)
         count+=1
@@ -86,5 +86,5 @@ for i in range(episodes):
     buff.states = np.array(buff.states,dtype= "float32").reshape((-1,2))
     for i in range(3):
         ruff_train(buff,returns,advantages)
-    save_model(actor,critic)
+    save_model(actor,critic,save_path=".")
     #print(type(buff.values[5]))

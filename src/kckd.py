@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 c = 2e-10
-d = 0.99999994
+d = 0.999994
 
 done = 0
 counter = 0
