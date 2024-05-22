@@ -29,6 +29,7 @@ curDT = datetime.now()
 filename = "ruff_logfile"
 reward_log = 'reward_logfile.csv'
 discounted_sum = 0
+epsilon_min = 0.01
 
 import os
 urdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"urdf")
@@ -211,9 +212,9 @@ class ruff:
         c1 = 1.2
         c4 = 7.5
 
-        forward_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/abs(self.command[0]))
-        lateral_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[1]-self.command[1])**2)/abs(self.command[1]))
-        angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/abs(self.command[2]))
+        forward_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/max(abs(self.command[0]),epsilon_min))
+        lateral_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[1]-self.command[1])**2)/max(abs(self.command[1]),epsilon_min))
+        angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/max(abs(self.command[2]),epsilon_min))
         Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/abs(self.command[0])) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/abs(self.command[0])))
         twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/abs(self.command[0])
 
@@ -246,9 +247,9 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity
+        basic_reward = forward_velocity + lateral_velocity + Balance+ angular_velocity + joint_constraints 
         freq_reward = kc*0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
-        efficiency_reward = kc*( Balance+joint_constraints  + foot_slip + policy_smooth+twist)
+        efficiency_reward = kc*( foot_slip + policy_smooth+twist)
 
         rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
                    foot_stance, foot_clear, foot_zvel1, frequency_err, phase_err,
