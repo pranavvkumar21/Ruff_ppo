@@ -6,9 +6,11 @@ done = 0
 counter = 0
 while not done:
     c = c**d
-    if c>0.98:
+    if counter == 2000000:
         done = 1
     if counter%1_000_000==0:
         print(c)
+    if counter ==1_300_000:
+        print("c: "+str(c) )
     counter +=1
 print(counter)
