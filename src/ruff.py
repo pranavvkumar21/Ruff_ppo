@@ -14,8 +14,15 @@ import os
 import csv
 from datetime import datetime
 import random
+import logging
+import warnings
 
+# Suppress specific warning
+warnings.filterwarnings("ignore", category=UserWarning, message="A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy")
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+tf.get_logger().setLevel(logging.ERROR)
 NUM_EPISODES = 100_000
 STEPS_PER_EPISODE = 3_000
 timestep =1.0/100.0
@@ -33,7 +40,7 @@ epsilon_min = 0.01
 
 import os
 urdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"urdf")
-print(os.listdir(os.path.dirname(os.path.abspath(__file__))))
+#print(os.listdir(os.path.dirname(os.path.abspath(__file__))))
 tfd = tfp.distributions
 
 urdf_constraint = [0,math.pi/6,math.pi/6]*4
