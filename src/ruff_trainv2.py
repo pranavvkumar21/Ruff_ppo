@@ -7,6 +7,7 @@ from collections import UserDict
 import pybullet_data
 from ruff import *
 import random, math
+from datetime import datetime
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
@@ -15,13 +16,25 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import CallbackList
 
+import logging
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+tf.get_logger().setLevel(logging.ERROR)
+
 NUM_EPISODES = 100000
-#kc = 2e-10
-kc = 0.99999
+kc = 2e-10
+#kc = 0.99999
 kd = 0.999994
 LOAD = True
-testing_mode = True
-model_path = '../model/'
+testing_mode = False
+checkpoint = 50000
+
+now = datetime.now()
+formatted_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+model_path = '../model/v2_models/'
+save_model_path = model_path+"model_"+str(formatted_time)
+
 prefix = 'ruu_ppo_model'
 if testing_mode:
     NUM_ENV = 1
@@ -48,13 +61,19 @@ class TensorboardCallback(BaseCallback):
         
         return True
 
-checkpoint_callback = CheckpointCallback(save_freq=50000, save_path=model_path,
-                                         name_prefix=prefix)
 
-callback = CallbackList([checkpoint_callback, TensorboardCallback()])
 
 
 def get_latest_model_path(folder_path, prefix):
+    folders = os.listdir(folder_path)
+    folders.sort(reverse=True)
+    print(folders)
+    latest_folder = folders[1]
+    print(latest_folder)
+    folder_path = os.path.join(folder_path,latest_folder)
+    print("-"*30)
+    print(latest_folder)
+
     files = [f for f in os.listdir(folder_path) if f.startswith(prefix) and f.endswith('.zip')]
     if not files:
         raise FileNotFoundError(f"No checkpoint files found with prefix '{prefix}' in '{folder_path}'")
@@ -175,6 +194,12 @@ def make_env(rank, seed=0, render_type="direct"):
 if __name__ == "__main__":
 
     if not testing_mode:
+        os.mkdir(save_model_path)
+        checkpoint_callback = CheckpointCallback(save_freq=checkpoint, save_path=save_model_path,
+                                         name_prefix=prefix)
+
+        callback = CallbackList([checkpoint_callback, TensorboardCallback()])
+        print("created new save path")
         env = SubprocVecEnv([make_env(i,render_type=render_type) for i in range(NUM_ENV)])
     else:
         env = Ruff_env(render_type=render_type)
@@ -190,6 +215,7 @@ if __name__ == "__main__":
     try:
         if LOAD:
             latest_model_path = get_latest_model_path(model_path, prefix)
+
             model = PPO.load(latest_model_path,env=env)
             print("loaded model: "+latest_model_path)
             print("-"*120)
