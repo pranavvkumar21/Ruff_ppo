@@ -24,10 +24,10 @@ tf.get_logger().setLevel(logging.ERROR)
 
 NUM_EPISODES = 100000
 kc = 2e-10
-#kc = 0.99999
+kc = 0.17
 kd = 0.999994
 LOAD = True
-testing_mode = False
+testing_mode = True
 checkpoint = 50000
 
 now = datetime.now()
@@ -68,7 +68,10 @@ def get_latest_model_path(folder_path, prefix):
     folders = os.listdir(folder_path)
     folders.sort(reverse=True)
     print(folders)
-    latest_folder = folders[1]
+    if not testing_mode:
+        latest_folder = folders[1]
+    else:
+        latest_folder = folders[0]
     print(latest_folder)
     folder_path = os.path.join(folder_path,latest_folder)
     print("-"*30)
@@ -210,7 +213,7 @@ if __name__ == "__main__":
         n_steps=1024,
         verbose=1,
         policy_kwargs=dict(net_arch=[256, 256]),  # Adjust the policy architecture if needed
-        tensorboard_log="./ppo_pybullet_tensorboard/"
+        tensorboard_log="../logs/ppo_pybullet_tensorboard/"
     )
     try:
         if LOAD:
