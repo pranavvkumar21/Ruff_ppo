@@ -26,8 +26,8 @@ NUM_EPISODES = 100000
 kc = 2e-10
 kc = 0.17
 kd = 0.999994
-LOAD = True
-testing_mode = True
+LOAD = False
+testing_mode = False
 checkpoint = 50000
 
 now = datetime.now()
@@ -41,7 +41,7 @@ if testing_mode:
     render_type = "gui"
     LOAD = True
 else:
-    NUM_ENV = 24
+    NUM_ENV = 32
     render_type = "DIRECT"
 
 class TensorboardCallback(BaseCallback):
@@ -195,7 +195,12 @@ def make_env(rank, seed=0, render_type="direct"):
 
 
 if __name__ == "__main__":
-
+    print("--"*50)
+    print("initializing ruff training")
+    print(f"testing mode: {testing_mode}")
+    print(f"load set to: {LOAD}")
+    print(f"number of env: {NUM_ENV}")
+    print("\n\n")
     if not testing_mode:
         os.mkdir(save_model_path)
         checkpoint_callback = CheckpointCallback(save_freq=checkpoint, save_path=save_model_path,
