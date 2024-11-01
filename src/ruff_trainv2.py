@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+import logging
+import os
+import warnings
+import tensorflow as tf
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+tf.get_logger().setLevel(logging.ERROR)
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -8,7 +17,9 @@ import pybullet_data
 from ruff import *
 import random, math
 from datetime import datetime
-
+import json
+import glob
+import shutil
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -16,24 +27,25 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import CallbackList
 
-import logging
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-tf.get_logger().setLevel(logging.ERROR)
 
-NUM_EPISODES = 100000
-kc = 2e-10
-kc = 0.17
-kd = 0.999994
+TOTAL_TIMESTEPS = 98_304_000
+ELAPSED_TIMESTEPS = 0
+kc = 0.3
+kd = 0.999996
 LOAD = False
-testing_mode = False
-checkpoint = 50000
+testing_mode = True
+checkpoint = 50_000
 
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 model_path = '../model/v2_models/'
 save_model_path = model_path+"model_"+str(formatted_time)
+save_config_path = "../config/config.txt"
+log_dir = "../logs"
+
+# Remove all files in the directory
+
 
 prefix = 'ruu_ppo_model'
 if testing_mode:
@@ -44,23 +56,88 @@ else:
     NUM_ENV = 32
     render_type = "DIRECT"
 
+
+
 class TensorboardCallback(BaseCallback):
     def __init__(self, verbose=0):
         super(TensorboardCallback, self).__init__(verbose)
-        self.episode_rewards = []
+        self.episode_rewards = []  # Store total rewards for episodes
+        self.episode_sub_rewards = {}  # Store sub-rewards for episodes
 
     def _on_step(self) -> bool:
         # Collect rewards from all environments
         rewards = np.array(self.locals['rewards'])
         self.episode_rewards.append(rewards)
-        
+
+        # Assuming `info` dictionary contains sub-rewards as 'rewards'
+        infos = self.locals['infos']
+        for info in infos:
+            if 'rewards' in info:
+                for key, value in info['rewards'].items():
+                    if key not in self.episode_sub_rewards:
+                        self.episode_sub_rewards[key] = []
+                    self.episode_sub_rewards[key].append(value)
+
+        # Check if the episode ended
         if self.locals['dones'].any():
+            # Log the mean reward for the episode
             mean_reward = np.mean([np.sum(rew) for rew in self.episode_rewards])
             self.logger.record('rollout/ep_rew_mean', mean_reward)
-            self.episode_rewards = []  # Reset for next episode
-        
-        return True
 
+            # Log sub-rewards (mean of each sub-reward over the episode)
+            for key, sub_reward_list in self.episode_sub_rewards.items():
+                mean_sub_reward = np.mean(sub_reward_list)
+                self.logger.record(f'rollout/sub_reward_{key}_mean', mean_sub_reward)
+
+            # Reset episode rewards for next episode
+            self.episode_rewards = []
+            self.episode_sub_rewards = {}
+
+        return True
+    
+class CustomCheckpointCallback(CheckpointCallback):
+    """
+    Custom checkpoint callback that saves an extra variable.
+    """
+    def __init__(self, save_freq, save_path, name_prefix, verbose=1):
+        super(CustomCheckpointCallback, self).__init__(save_freq=save_freq, save_path=save_path, name_prefix=name_prefix, verbose=verbose)
+        self.extra_variable = {"elapsed_timesteps":0, "n_calls":0}
+
+    def _on_step(self) -> bool:
+        # Call parent class's _on_step method to handle checkpointing logic
+        result = super(CustomCheckpointCallback, self)._on_step()
+
+        # Additional logic to save extra variable along with the model
+        if self.n_calls % self.save_freq == 0:
+            # Save extra variable to a file (you can change this based on your needs)
+            self.extra_variable = {"elapsed_timesteps":self.num_timesteps, "n_calls":self.n_calls}
+            with open(save_config_path, 'w') as f:
+                json.dump(self.extra_variable, f, indent=4) # Save the extra variable with numpy
+
+            if self.verbose > 0:
+                print(f"Saving checkpoint data at {self.num_timesteps} timesteps to {save_config_path}")
+
+        return result
+
+def load_checkpoint_data(json_path: str):
+    try:
+
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+
+        # Extract the values of interest (elapsed_timesteps and kc)
+        elapsed_timesteps = data.get('elapsed_timesteps', None)
+        n_calls = data.get('n_calls', None)
+        for i in range(n_calls):
+            global kc,kd
+            kc = kc**kd
+        #kc = data.get('kc', None)
+
+        return elapsed_timesteps, kc
+    except:
+        print("config file not found")
+    
+        return 0, kc
 
 
 
@@ -88,9 +165,10 @@ def get_latest_model_path(folder_path, prefix):
 
 
 class Ruff_env(gym.Env):
-    def __init__(self,render_type="gui",command=[0.3,1e-9,1e-9],curriculum = False, kc=0,kd=1):
+    def __init__(self,rank=1, render_type="gui",command=[0.3,1e-9,1e-9],curriculum = False, kc=0,kd=1):
         super(Ruff_env, self).__init__()
         # Define the action and observation space
+        self.env_rank = rank
         self.timestep = 1.0/2000.0
         self.sim_steps_per_control_step = 20
         self.action_space = spaces.Box(low=-1, high=1, shape=(16,), dtype=np.float32)
@@ -111,8 +189,8 @@ class Ruff_env(gym.Env):
         self.Id = p.loadURDF("../urdf/ruff.urdf",self.Initial_position, self.Initial_orientation)
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
         self.ru = ruff(self.Id,self.command)
-        print(self.ru.id)
-        print("-"*20)
+        print("created doggo with id: " +str(self.env_rank))
+        #print("-"*20)
         self.og_state = p.saveState()
         self.state = self.ru.get_state()
         self.timestep = 0
@@ -136,9 +214,9 @@ class Ruff_env(gym.Env):
         command = [random.uniform(0.3,2),1e-9,1e-9]
         self.ru = ruff(self.Id,self.command)
         self.state = self.ru.get_state().flatten()
-        print("resetting..")
-        print("new command: "+ str(command))
-        print("kc: "+str(self.kc))
+        print("resetting.. doggo no: "+str(self.env_rank))
+        print("new command: "+ str(command)+"\n\n")
+        print("kc updated to: "+str(self.kc))
         self.timestep = 0
         return self.state, {}
 
@@ -161,17 +239,17 @@ class Ruff_env(gym.Env):
         self.timestep+=1
         if self.ru.is_end():
             done = True
-            print("ruff fell")
+            print("doggo no:"+str(self.env_rank)+" fell")
         else:
             done = False
         if self.timestep>2000:
             truncated = True
-            print("episode end")
+            print("doggo no:"+str(self.env_rank)+"completed the episode")
         else:
             truncated = False
         self.new_state = self.ru.get_state().flatten()
         reward,rewards = self.ru.get_reward(self.kc)
-        return self.new_state, reward, done, truncated, {"rewards":rewards}
+        return self.new_state, reward, done, truncated, rewards
     
     def render(self, mode='human'):
         # Render the environment to the screen
@@ -187,8 +265,9 @@ class Ruff_env(gym.Env):
 
 def make_env(rank, seed=0, render_type="direct"):
     def _init():
-        print(render_type)
-        env = Ruff_env(render_type,curriculum=True,kc = kc, kd=kd)
+        #print(render_type)
+        #print(rank)
+        env = Ruff_env(rank, render_type,curriculum=True,kc = kc, kd=kd)
         #env.seed(seed + rank)
         return env
     return _init
@@ -201,13 +280,29 @@ if __name__ == "__main__":
     print(f"load set to: {LOAD}")
     print(f"number of env: {NUM_ENV}")
     print("\n\n")
+
+    if not LOAD:
+        try:
+            shutil.rmtree("../logs/ppo_pybullet_tensorboard/")
+            print("removed tensorboard los")
+        except:
+            print("no tensorboard logs found in directory")
+        try:
+            os.remove("../config/config.txt")
+            print("checkpoint data removed")
+        except:
+            print("no config file found to remove")
+
     if not testing_mode:
         os.mkdir(save_model_path)
         checkpoint_callback = CheckpointCallback(save_freq=checkpoint, save_path=save_model_path,
                                          name_prefix=prefix)
-
-        callback = CallbackList([checkpoint_callback, TensorboardCallback()])
+        custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,save_path=save_model_path,name_prefix=prefix )
+        callback = CallbackList([custom_checkpoint_callback, TensorboardCallback()])
         print("created new save path")
+
+        if LOAD:
+            ELAPSED_TIMESTEPS,kc = load_checkpoint_data(save_config_path)
         env = SubprocVecEnv([make_env(i,render_type=render_type) for i in range(NUM_ENV)])
     else:
         env = Ruff_env(render_type=render_type)
@@ -223,10 +318,10 @@ if __name__ == "__main__":
     try:
         if LOAD:
             latest_model_path = get_latest_model_path(model_path, prefix)
-
             model = PPO.load(latest_model_path,env=env)
             print("loaded model: "+latest_model_path)
             print("-"*120)
+            ELAPSED_TIMESTEPS,kc = load_checkpoint_data(save_config_path)
         else:
             print("load set to off")
     except Exception as e:
@@ -234,7 +329,7 @@ if __name__ == "__main__":
         print("error: "+str(e))
     
     if not testing_mode:
-        model.learn(total_timesteps=98304000, callback=callback)
+        model.learn(total_timesteps=(TOTAL_TIMESTEPS - ELAPSED_TIMESTEPS), callback=callback, reset_num_timesteps=(not LOAD), tb_log_name="ruff_ppo")
         model.save("ppo_custom_pybullet_env")
         print("saved file. training completeee")
 

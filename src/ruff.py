@@ -258,9 +258,9 @@ class ruff:
         freq_reward = kc*0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err)
         efficiency_reward = kc*( foot_slip + policy_smooth+twist+ Balance)
 
-        rewards = [forward_velocity,lateral_velocity,angular_velocity,Balance,
-                   foot_stance, foot_clear, foot_zvel1, frequency_err, phase_err,
-                   joint_constraints, foot_slip, policy_smooth,twist]
+        rewards = {"forward_velocity":forward_velocity,"lateral_velocity":lateral_velocity,"angular_velocity":angular_velocity,"Balance":Balance,
+                   "foot_stance":foot_stance, "foot_clear":foot_clear, "foot_zvel1":foot_zvel1, "frequency_err":frequency_err, "phase_err":phase_err,
+                   "joint_constraints":joint_constraints, "foot_slip":foot_slip, "policy_smooth":policy_smooth,"twist":twist}
         self.reward = basic_reward+ freq_reward + efficiency_reward
 
         return self.reward,rewards
