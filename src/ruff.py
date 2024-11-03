@@ -61,7 +61,7 @@ def setup_world(n_actors,client_mode):
         startPos = [0,d*3,0.4]
         d+=1
         startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-        boxId = p.loadURDF(urdf_path+"/ruff.urdf",startPos, startOrientation)
+        boxId = p.loadURDF(urdf_path+"/ruff_new.urdf",startPos, startOrientation)
         p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
         ids.append(boxId)
     return ids
