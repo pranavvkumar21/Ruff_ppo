@@ -33,7 +33,7 @@ TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
 kc = 0.3
 kd = 0.999994
-LOAD = True
+LOAD = False
 testing_mode = False
 checkpoint = 50_000
 
@@ -160,7 +160,7 @@ def get_latest_model_path(folder_path, prefix):
     
     # Sort files by modification time
     files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(folder_path, x)), reverse=True)
-    return os.path.join(folder_path, files[0])
+    return folder_path, os.path.join(folder_path, files[0])
 
 
 
@@ -294,7 +294,10 @@ if __name__ == "__main__":
             print("no config file found to remove")
 
     if not testing_mode:
-        os.mkdir(save_model_path)
+        if not LOAD:
+            os.mkdir(save_model_path)
+        else:
+            save_model_path,_ = get_latest_model_path(model_path, prefix)
         checkpoint_callback = CheckpointCallback(save_freq=checkpoint, save_path=save_model_path,
                                          name_prefix=prefix)
         custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,save_path=save_model_path,name_prefix=prefix )
@@ -317,7 +320,7 @@ if __name__ == "__main__":
     )
     try:
         if LOAD:
-            latest_model_path = get_latest_model_path(model_path, prefix)
+            _,latest_model_path = get_latest_model_path(model_path, prefix)
             model = PPO.load(latest_model_path,env=env)
             print("loaded model: "+latest_model_path)
             print("-"*120)
