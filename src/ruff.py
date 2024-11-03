@@ -219,8 +219,15 @@ class ruff:
         c1 = 1.2
         c4 = 7.5
 
-        forward_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[0]-self.command[0])**2)/max(abs(self.command[0]),epsilon_min))
-        lateral_velocity = 2*math.exp(-3 * ((self.base_linear_velocity[1]-self.command[1])**2)/max(abs(self.command[1]),epsilon_min))
+        # transform forward and lateral velocity from base frame 
+        yaw = self.base_orientation[2]
+        fwd_world_frame = np.array([np.cos(yaw), np.sin(yaw), 0])
+        lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
+        fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
+        lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
+
+        forward_velocity = 2*math.exp(-3 * ((fwd_velocity-self.command[0])**2)/max(abs(self.command[0]),epsilon_min))
+        lateral_velocity = 2*math.exp(-3 * ((lat_velocity-self.command[1])**2)/max(abs(self.command[1]),epsilon_min))
         angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/max(abs(self.command[2]),epsilon_min))
         Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/abs(self.command[0])) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/abs(self.command[0])))
         twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/abs(self.command[0])
