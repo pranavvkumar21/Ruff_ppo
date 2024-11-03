@@ -32,7 +32,7 @@ from stable_baselines3.common.callbacks import CallbackList
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
 kc = 0.3
-kd = 0.999994
+kd = 0.999995
 LOAD = False
 testing_mode = False
 checkpoint = 50_000
