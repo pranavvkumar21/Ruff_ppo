@@ -32,9 +32,9 @@ from stable_baselines3.common.callbacks import CallbackList
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
 kc = 0.3
-kd = 0.999996
-LOAD = False
-testing_mode = True
+kd = 0.999994
+LOAD = True
+testing_mode = False
 checkpoint = 50_000
 
 now = datetime.now()
