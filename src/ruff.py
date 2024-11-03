@@ -233,7 +233,7 @@ class ruff:
         twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/abs(self.command[0])
 
         if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
-            collision = -8
+            collision = -15
         else:
             collision = 0
 
@@ -268,7 +268,7 @@ class ruff:
         rewards = {"forward_velocity":forward_velocity,"lateral_velocity":lateral_velocity,"angular_velocity":angular_velocity,"Balance":Balance,
                    "foot_stance":foot_stance, "foot_clear":foot_clear, "foot_zvel1":foot_zvel1, "frequency_err":frequency_err, "phase_err":phase_err,
                    "joint_constraints":joint_constraints, "foot_slip":foot_slip, "policy_smooth":policy_smooth,"twist":twist}
-        self.reward = basic_reward+ freq_reward + efficiency_reward
+        self.reward = basic_reward+ freq_reward + efficiency_reward + collision
 
         return self.reward,rewards
 
