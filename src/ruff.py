@@ -61,7 +61,7 @@ def setup_world(n_actors,client_mode):
         startPos = [0,d*3,0.4]
         d+=1
         startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-        boxId = p.loadURDF(urdf_path+"/ruff_new.urdf",startPos, startOrientation)
+        boxId = p.loadURDF(urdf_path+"/ruff.urdf",startPos, startOrientation)
         p.resetBasePositionAndOrientation(boxId, startPos,  startOrientation)
         ids.append(boxId)
     return ids
@@ -174,7 +174,7 @@ class ruff:
 
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
-            self.target_pos[i]+=pos_inc[i]
+            self.target_pos[i]= self.joint_position[i] + pos_inc[i]
 
         return self.target_pos
 
@@ -220,7 +220,7 @@ class ruff:
         c4 = 7.5
 
         # transform forward and lateral velocity from base frame 
-        yaw = self.base_orientation[2]
+        yaw = self.base_orientation[2]-math.pi/2
         fwd_world_frame = np.array([np.cos(yaw), np.sin(yaw), 0])
         lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
         fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
@@ -229,8 +229,8 @@ class ruff:
         forward_velocity = 2*math.exp(-3 * ((fwd_velocity-self.command[0])**2)/max(abs(self.command[0]),epsilon_min))
         lateral_velocity = 2*math.exp(-3 * ((lat_velocity-self.command[1])**2)/max(abs(self.command[1]),epsilon_min))
         angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/max(abs(self.command[2]),epsilon_min))
-        Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/abs(self.command[0])) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/abs(self.command[0])))
-        twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/abs(self.command[0])
+        Balance = 1.3*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
+        twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/max(abs(self.command[0]),epsilon_min)
 
         if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
             collision = -15
@@ -256,21 +256,21 @@ class ruff:
             frequency_err += abs(self.rg_freq[i]) if self.binary_phase[i] else 0
             phase_err += 1 if self.is_contact[i] == self.binary_phase[i] else 0
             foot_zvel1 += abs(self.foot_zvel[i])
-        policy_smooth = -0.016 * c4 * (policy_smooth**0.5)/abs(self.command[0])
-        foot_zvel1 = (-0.03*foot_zvel1**2)/abs(self.command[0])
-        foot_slip = -0.07*(foot_slip**0.5)/abs(self.command[0])
+        policy_smooth = -0.016 * c4 * (policy_smooth**0.5)/max(abs(self.command[0]),epsilon_min)
+        foot_zvel1 = (-0.03*foot_zvel1**2)/max(abs(self.command[0]),epsilon_min)
+        foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*frequency_err
-        joint_constraints = -0.8*(joint_constraints**0.5)/abs(self.command[0])
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity + joint_constraints 
-        freq_reward = kc*0* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth)
-        efficiency_reward = kc*( twist+ Balance)
+        joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
+        basic_reward = forward_velocity + lateral_velocity + angular_velocity 
+        freq_reward = kc* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth)
+        efficiency_reward = ( twist+ Balance+ joint_constraints )
 
         rewards = {"forward_velocity":forward_velocity,"lateral_velocity":lateral_velocity,"angular_velocity":angular_velocity,"Balance":Balance,
                    "foot_stance":foot_stance, "foot_clear":foot_clear, "foot_zvel1":foot_zvel1, "frequency_err":frequency_err, "phase_err":phase_err,
                    "joint_constraints":joint_constraints, "foot_slip":foot_slip, "policy_smooth":policy_smooth,"twist":twist}
         self.reward = basic_reward+ freq_reward + efficiency_reward + collision
-
-        return self.reward,rewards
+        infos = {"rewards":rewards}
+        return self.reward,infos
 
     def is_end(self):
         if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=() :
