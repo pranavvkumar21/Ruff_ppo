@@ -31,9 +31,9 @@ from stable_baselines3.common.callbacks import CallbackList
 
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
-kc = 0.3
-kd = 0.999995
-LOAD = False
+kc = 0.0001
+kd = 0.999997
+LOAD = True
 testing_mode = False
 checkpoint = 50_000
 
@@ -51,7 +51,7 @@ prefix = 'ruu_ppo_model'
 if testing_mode:
     NUM_ENV = 1
     render_type = "gui"
-    LOAD = True
+    LOAD = False
 else:
     NUM_ENV = 32
     render_type = "DIRECT"
@@ -71,6 +71,7 @@ class TensorboardCallback(BaseCallback):
 
         # Assuming `info` dictionary contains sub-rewards as 'rewards'
         infos = self.locals['infos']
+        
         for info in infos:
             if 'rewards' in info:
                 for key, value in info['rewards'].items():
@@ -83,10 +84,10 @@ class TensorboardCallback(BaseCallback):
             # Log the mean reward for the episode
             mean_reward = np.mean([np.sum(rew) for rew in self.episode_rewards])
             self.logger.record('rollout/ep_rew_mean', mean_reward)
-
             # Log sub-rewards (mean of each sub-reward over the episode)
             for key, sub_reward_list in self.episode_sub_rewards.items():
                 mean_sub_reward = np.mean(sub_reward_list)
+                #print(f"len of infos: {mean_sub_reward}")
                 self.logger.record(f'rollout/sub_reward_{key}_mean', mean_sub_reward)
 
             # Reset episode rewards for next episode
@@ -146,7 +147,7 @@ def get_latest_model_path(folder_path, prefix):
     folders.sort(reverse=True)
     print(folders)
     if not testing_mode:
-        latest_folder = folders[1]
+        latest_folder = folders[0]
     else:
         latest_folder = folders[0]
     print(latest_folder)
@@ -211,11 +212,14 @@ class Ruff_env(gym.Env):
         if seed is not None:
             np.random.seed(seed)
         p.restoreState(stateId=self.og_state)
-        command = [random.uniform(0.3,2),1e-9,1e-9]
+        
+        #commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-self.kc,self.kc),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-self.kc,self.kc)]]
+        commands = [[random.uniform(0.3,2),1e-9,1e-9]]
+        self.command = random.choice(commands)
         self.ru = ruff(self.Id,self.command)
         self.state = self.ru.get_state().flatten()
         print("resetting.. doggo no: "+str(self.env_rank))
-        print("new command: "+ str(command)+"\n\n")
+        print("new command: "+ str(self.command)+"\n\n")
         print("kc updated to: "+str(self.kc))
         self.timestep = 0
         return self.state, {}
@@ -248,8 +252,8 @@ class Ruff_env(gym.Env):
         else:
             truncated = False
         self.new_state = self.ru.get_state().flatten()
-        reward,rewards = self.ru.get_reward(self.kc)
-        return self.new_state, reward, done, truncated, rewards
+        reward,infos = self.ru.get_reward(self.kc)
+        return self.new_state, reward, done, truncated, infos
     
     def render(self, mode='human'):
         # Render the environment to the screen
@@ -314,6 +318,10 @@ if __name__ == "__main__":
         "MlpPolicy", 
         env, 
         n_steps=1024,
+        learning_rate=3.5e-4,
+        gamma=0.992,
+        ent_coef=0.0025,
+        target_kl=0.015,
         verbose=1,
         policy_kwargs=dict(net_arch=[256, 256]),  # Adjust the policy architecture if needed
         tensorboard_log="../logs/ppo_pybullet_tensorboard/"
