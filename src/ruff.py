@@ -215,7 +215,7 @@ class ruff:
         log_probs = dist.log_prob(actions)
         return pos_inc,freq, actions,log_probs
 
-    def get_reward(self,kc=1):
+    def get_reward(self,kc=1,kce=1):
         c1 = 1.2
         c4 = 7.5
 
@@ -263,7 +263,7 @@ class ruff:
         joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
         basic_reward = forward_velocity + lateral_velocity + angular_velocity 
         freq_reward = kc* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth)
-        efficiency_reward = ( twist+ Balance+ joint_constraints )
+        efficiency_reward = kce*( twist+ Balance+ joint_constraints )
 
         rewards = {"forward_velocity":forward_velocity,"lateral_velocity":lateral_velocity,"angular_velocity":angular_velocity,"Balance":Balance,
                    "foot_stance":foot_stance, "foot_clear":foot_clear, "foot_zvel1":foot_zvel1, "frequency_err":frequency_err, "phase_err":phase_err,

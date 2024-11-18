@@ -29,10 +29,10 @@ from stable_baselines3.common.callbacks import CallbackList
 
 
 
-TOTAL_TIMESTEPS = 98_304_000
+TOTAL_TIMESTEPS = 200_304_000
 ELAPSED_TIMESTEPS = 0
 kc = 0.0001
-kd = 0.999997
+kd = 0.999998
 LOAD = True
 testing_mode = False
 checkpoint = 50_000
@@ -199,12 +199,16 @@ class Ruff_env(gym.Env):
         if self.curriculum:
             self.kc = kc
             self.kd = kd
+            self.kce = kc
+            self.kde = kd - 0.0000015
+            
         else:
             self.kc = 0
 
 
     def set_curriculum(self):
         self.kc = self.kc ** self.kd
+        self.kce = self.kce**self.kde
 
     def reset(self, seed=None, options=None):
         # Reset the state of the environment to an initial state
@@ -221,6 +225,7 @@ class Ruff_env(gym.Env):
         print("resetting.. doggo no: "+str(self.env_rank))
         print("new command: "+ str(self.command)+"\n\n")
         print("kc updated to: "+str(self.kc))
+        print("kce updated to: "+str(self.kce))
         self.timestep = 0
         return self.state, {}
 
@@ -252,7 +257,7 @@ class Ruff_env(gym.Env):
         else:
             truncated = False
         self.new_state = self.ru.get_state().flatten()
-        reward,infos = self.ru.get_reward(self.kc)
+        reward,infos = self.ru.get_reward(self.kc,self.kce)
         return self.new_state, reward, done, truncated, infos
     
     def render(self, mode='human'):
