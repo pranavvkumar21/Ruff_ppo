@@ -31,9 +31,9 @@ from stable_baselines3.common.callbacks import CallbackList
 
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
-kc = 0.0001
-kd = 0.999997
-LOAD = True
+kc = 0.001
+kd = 0.995
+LOAD = False
 testing_mode = False
 checkpoint = 50_000
 
@@ -56,6 +56,35 @@ else:
     NUM_ENV = 32
     render_type = "DIRECT"
 
+class CurriculumCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self.step_counts = []
+
+    def _on_step(self) -> bool:
+        infos = self.locals["infos"]
+        dones = self.locals["dones"]
+        for i, done in enumerate(dones):
+            if done:
+                self.step_counts.append(self.num_timesteps // self.training_env.num_envs)  # rough per-env step count
+        return True
+
+    def _on_rollout_end(self) -> None:
+        # kc update
+        # kc_new = min(1.0, self.training_env.envs[0].kc ** self.training_env.envs[0].kd)
+        kc = self.training_env.get_attr("kc")[0]
+        kd = self.training_env.get_attr("kd")[0]
+        kc_new = min(1.0, kc ** kd)
+        self.training_env.set_attr("kc", kc_new)
+        # for env in self.training_env.envs:
+        #     env.kc = kc_new
+        print(f"[Curriculum] kc updated to: {kc_new:.6f}")
+
+        # avg episode length
+        if self.step_counts:
+            avg_steps = sum(self.step_counts) / len(self.step_counts)
+            print(f"[Rollout] Avg episode length: {avg_steps:.1f} steps")
+            self.step_counts.clear()
 
 
 class TensorboardCallback(BaseCallback):
@@ -218,15 +247,16 @@ class Ruff_env(gym.Env):
         self.command = random.choice(commands)
         self.ru = ruff(self.Id,self.command)
         self.state = self.ru.get_state().flatten()
-        print("resetting.. doggo no: "+str(self.env_rank))
-        print("new command: "+ str(self.command)+"\n\n")
-        print("kc updated to: "+str(self.kc))
+        # print("resetting.. doggo no: "+str(self.env_rank))
+        # print("new command: "+ str(self.command)+"\n\n")
+        # print("kc updated to: "+str(self.kc))
         self.timestep = 0
         return self.state, {}
 
     def step(self, action):
         if self.curriculum:
-            self.set_curriculum()
+            pass
+            #self.set_curriculum()
             #print(self.kc)
         freq = np.abs(action[12:]).tolist()
         pos_update = action[0:12]
@@ -243,12 +273,12 @@ class Ruff_env(gym.Env):
         self.timestep+=1
         if self.ru.is_end():
             done = True
-            print("doggo no:"+str(self.env_rank)+" fell")
+            # print("doggo no:"+str(self.env_rank)+" fell")
         else:
             done = False
         if self.timestep>2000:
             truncated = True
-            print("doggo no:"+str(self.env_rank)+"completed the episode")
+            # print("doggo no:"+sstr(self.env_rank)+"completed the episode")
         else:
             truncated = False
         self.new_state = self.ru.get_state().flatten()
@@ -305,7 +335,7 @@ if __name__ == "__main__":
         checkpoint_callback = CheckpointCallback(save_freq=checkpoint, save_path=save_model_path,
                                          name_prefix=prefix)
         custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,save_path=save_model_path,name_prefix=prefix )
-        callback = CallbackList([custom_checkpoint_callback, TensorboardCallback()])
+        callback = CallbackList([custom_checkpoint_callback, TensorboardCallback(),CurriculumCallback()])
         print("created new save path")
 
         if LOAD:
