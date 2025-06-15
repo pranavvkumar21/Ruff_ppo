@@ -25,7 +25,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.get_logger().setLevel(logging.ERROR)
 NUM_EPISODES = 100_000
 STEPS_PER_EPISODE = 3_000
-timestep =1.0/100.0
+timestep = 1.0/2000.0
 num_inputs = (60,)
 gamma= 0.992
 lmbda = 0.95
@@ -57,7 +57,6 @@ def setup_world(n_actors,client_mode):
         print(i)
         if d>=max_row:
             c-=1
-            #d=0
         startPos = [0,d*3,0.4]
         d+=1
         startOrientation = p.getQuaternionFromEuler([0,0,math.pi/2])
@@ -169,7 +168,7 @@ class ruff:
 
     def phase_modulator(self):
         for i in range(len(self.rg_phase)):
-            self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*3*timestep)%(2*math.pi)
+            self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*timestep)%(2*math.pi)
             self.binary_phase[i] = True if self.rg_phase[i]<=math.pi else False #True if stance
 
     def update_target_pos(self,pos_inc):
@@ -184,10 +183,21 @@ class ruff:
     def get_height(self):
         self.foot_height = [p.getClosestPoints(self.id,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=11)[0][8]]
     def move(self):
-        max_force = 100
+        self.getpos_error()
+        Kp = 78
+        Kd = 2
+        self.joint_torque = []
+        self.joint_velocity_error = []
         for i in range(len(self.n_joints)):
-            p.setJointMotorControl2(self.id,self.n_joints[i],controlMode=p.POSITION_CONTROL,
-                                    targetPosition = self.target_pos[i],force=max_force)
+            vel_err = -self.joint_velocity[i]
+            torque = Kp * self.pos_error[i] + Kd * vel_err
+            self.joint_torque.append(torque)
+            self.joint_velocity_error.append(vel_err)
+            p.setJointMotorControl2(
+                self.id, self.n_joints[i],
+                controlMode=p.TORQUE_CONTROL,
+                force=torque
+            )
     def set_frequency(self,freq):
         self.rg_freq = freq
 
@@ -216,8 +226,11 @@ class ruff:
         return pos_inc,freq, actions,log_probs
 
     def get_reward(self,kc=1):
-        c1 = 1.2
-        c4 = 7.5
+        c1 = c2 = c3 = c4 =  1.2
+        epsilon_min = 0.00001
+        cx = 1.0/ max(abs(self.command[0]),epsilon_min)
+        cy = 1.0/ max(abs(self.command[1]),epsilon_min)
+        cw = 1.0/ max(abs(self.command[2]),epsilon_min)
 
         # transform forward and lateral velocity from base frame 
         yaw = self.base_orientation[2]-math.pi/2
@@ -225,16 +238,11 @@ class ruff:
         lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
         fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
         lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
-        # fwd_velocity = self.base_linear_velocity[0]
-        # lat_velocity = self.base_linear_velocity[1]
-        forward_velocity = 3*math.exp(-3 * ((fwd_velocity-self.command[0])**2)/max(abs(self.command[0]),epsilon_min))
-        # forward_velocity = 3 * np.exp(-10 * ((fwd_velocity - self.command[0])**2) / self.command[0])
-        # if fwd_velocity < 0.2 * self.command[0]:
-        #     forward_velocity -= 0.5     # punish loafing
-        lateral_velocity = 2*math.exp(-3 * ((lat_velocity-self.command[1])**2)/max(abs(self.command[1]),epsilon_min))
-        angular_velocity = 1.5*math.exp(-1.5 * ((self.base_angular_velocity[2]-self.command[2])**2)/max(abs(self.command[2]),epsilon_min))
-        Balance = 0.8*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
-        twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5)/max(abs(self.command[0]),epsilon_min)
+        forward_velocity = 3*math.exp(-3 * cx * ((fwd_velocity-self.command[0])**2))
+        lateral_velocity = 2*math.exp(-3 * cy * ((lat_velocity-self.command[1])**2))
+        angular_velocity = 1.5*math.exp(-1.5 * cw *((self.base_angular_velocity[2]-self.command[2])**2))
+        balance = 0.8*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
+        twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
 
         if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
             collision = -3
@@ -247,12 +255,15 @@ class ruff:
         foot_zvel1 = 0
         policy_smooth = 0
         joint_constraints = 0
+        joint_velocity_error = 0
+        joint_torque_error = 0
         frequency_err = 0
         phase_err = 0
         for i in range(16):
             policy_smooth+=(self.policy[i] - self.prev_policy[i])**2
         for i in range(12):
             joint_constraints += self.pos_error[i]**2
+
         for i in range(4):
             foot_slip += (self.foot_xvel[i]**2 + self.foot_yvel[i]**2) if self.binary_phase[i] else 0
             foot_stance += 1 if self.foot_height[i]<0.01 and self.binary_phase[i] else 0
@@ -265,14 +276,47 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity 
-        freq_reward = kc* (foot_stance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth+joint_constraints)
-        efficiency_reward =  twist+ Balance
+        torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
+        velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
 
-        rewards = {"forward_velocity":forward_velocity,"lateral_velocity":lateral_velocity,"angular_velocity":angular_velocity,"Balance":Balance,
-                   "foot_stance":foot_stance, "foot_clear":foot_clear, "foot_zvel1":foot_zvel1, "frequency_err":frequency_err, "phase_err":phase_err,
-                   "joint_constraints":joint_constraints, "foot_slip":foot_slip, "policy_smooth":policy_smooth,"twist":twist}
-        self.reward = basic_reward+ freq_reward + efficiency_reward + collision*kc
+        basic_reward = forward_velocity + lateral_velocity + angular_velocity 
+        freq_reward = (foot_stance + balance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth+joint_constraints)
+        efficiency_reward =  twist
+        self.complete_reward = basic_reward + freq_reward + efficiency_reward
+        rewards = {"forward_velocity":forward_velocity,
+                   "lateral_velocity":lateral_velocity,
+                   "angular_velocity":angular_velocity,
+                   "Balance":balance,
+                   "foot_stance":foot_stance, 
+                   "foot_clear":foot_clear, 
+                   "foot_zvel1":foot_zvel1, 
+                   "frequency_err":frequency_err,
+                   "phase_err":phase_err,
+                   "joint_constraints":joint_constraints,
+                   "foot_slip":foot_slip, 
+                   "policy_smooth":policy_smooth,
+                   "twist":twist,
+                   "complete_reward":self.complete_reward, 
+                   "torque_penalty":torque_penalty,
+                   "velocity_penalty":velocity_penalty,}
+        
+        self.reward = kc["forward"]*forward_velocity + \
+                        kc["lateral"]*lateral_velocity + \
+                        kc["angular"]*angular_velocity + \
+                        kc["balance_twist"]*balance + \
+                        kc["balance_twist"]*twist + \
+                        kc["rhythm"]*(foot_stance) + \
+                        kc["rhythm"]*(foot_clear) + \
+                        kc["rhythm"]*(foot_zvel1) + \
+                        kc["rhythm"]*(frequency_err) + \
+                        kc["rhythm"]*(phase_err) + \
+                        kc["rhythm"]*(foot_slip) + \
+                        kc["efficiency"]*(policy_smooth) + \
+                        kc["efficiency"]*(joint_constraints) + \
+                        kc["efficiency"]*(torque_penalty) + \
+                        kc["efficiency"]*(velocity_penalty)
+
+        #self.reward = forward_velocity + kc*(lateral_velocity + angular_velocity)
         infos = {"rewards":rewards}
         return self.reward,infos
 
