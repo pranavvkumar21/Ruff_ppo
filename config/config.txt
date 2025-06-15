@@ -1,4 +1,5 @@
 {
-    "elapsed_timesteps": 14400000,
-    "n_calls": 450000
+    "elapsed_timesteps": 38400000,
+    "n_calls": 1200000,
+    "kc": 0.9827807640853391
 }

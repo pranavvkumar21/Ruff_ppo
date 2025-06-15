@@ -31,18 +31,41 @@ from stable_baselines3.common.callbacks import CallbackList
 
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
-kc = 0.001
-kd = 0.995
+kc = 0.15
+kd = 0.996
+kc = {
+    "forward": 1,
+    "lateral": 0.2,
+    "angular": 0.2,
+    "balance_twist": 0.01,
+    "rhythm": 0.01,
+    "efficiency": 0.01,
+}
+kd = {
+    "forward": 0.996,
+    "lateral": 0.996,
+    "angular": 0.996,
+    "balance_twist": 0.998,
+    "rhythm": 0.9993,
+    "efficiency": 0.9993
+}
 LOAD = False
 testing_mode = False
 checkpoint = 50_000
 
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-model_path = '../model/v2_models/'
+model_path = '../models/'
 save_model_path = model_path+"model_"+str(formatted_time)
 save_config_path = "../config/config.txt"
 log_dir = "../logs"
+video_dir = "../videos"
+if not os.path.exists(model_path):
+    os.makedirs(model_path)
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+if not os.path.exists(video_dir):
+    os.makedirs(video_dir)
 
 # Remove all files in the directory
 
@@ -59,26 +82,32 @@ else:
 class CurriculumCallback(BaseCallback):
     def __init__(self, verbose=0):
         super().__init__(verbose)
-        self.step_counts = []
+        self.env_steps = {}
+        self.step_counts = [] 
 
     def _on_step(self) -> bool:
         infos = self.locals["infos"]
         dones = self.locals["dones"]
+
         for i, done in enumerate(dones):
+            self.env_steps[i] = self.env_steps.get(i, 0) + 1
             if done:
-                self.step_counts.append(self.num_timesteps // self.training_env.num_envs)  # rough per-env step count
+                self.step_counts.append(self.env_steps[i])
+                self.env_steps[i] = 0
         return True
 
     def _on_rollout_end(self) -> None:
         # kc update
-        # kc_new = min(1.0, self.training_env.envs[0].kc ** self.training_env.envs[0].kd)
         kc = self.training_env.get_attr("kc")[0]
         kd = self.training_env.get_attr("kd")[0]
-        kc_new = min(1.0, kc ** kd)
+        
+        if isinstance(kc, dict):
+            kc_new = {key: min(1.0, value ** kd[key]) for key, value in kc.items()}
+        else:
+            kc_new = min(1.0, kc ** kd)
+        
         self.training_env.set_attr("kc", kc_new)
-        # for env in self.training_env.envs:
-        #     env.kc = kc_new
-        print(f"[Curriculum] kc updated to: {kc_new:.6f}")
+        print(f"[Curriculum] kc updated to: {kc_new}")
 
         # avg episode length
         if self.step_counts:
@@ -140,7 +169,11 @@ class CustomCheckpointCallback(CheckpointCallback):
         # Additional logic to save extra variable along with the model
         if self.n_calls % self.save_freq == 0:
             # Save extra variable to a file (you can change this based on your needs)
-            self.extra_variable = {"elapsed_timesteps":self.num_timesteps, "n_calls":self.n_calls}
+            self.extra_variable = {
+                "elapsed_timesteps": self.num_timesteps,
+                "n_calls": self.n_calls,
+                "kc": self.training_env.get_attr("kc")[0]  # Save kc
+            }
             with open(save_config_path, 'w') as f:
                 json.dump(self.extra_variable, f, indent=4) # Save the extra variable with numpy
 
@@ -148,6 +181,40 @@ class CustomCheckpointCallback(CheckpointCallback):
                 print(f"Saving checkpoint data at {self.num_timesteps} timesteps to {save_config_path}")
 
         return result
+
+class VideoCheckpointCallback(BaseCallback):
+    def __init__(self, video_root, run_id,
+                 save_freq=50_000, video_len=5_000,
+                 name_prefix="ruu_ppo_model", verbose=0):
+        super().__init__(verbose)
+        self.save_freq, self.video_len = save_freq, video_len
+        self.video_dir = os.path.join(video_root, f"videos_{run_id}")
+        os.makedirs(self.video_dir, exist_ok=True)
+        self.name_prefix = name_prefix
+
+    def _on_step(self) -> bool:
+        if self.num_timesteps % self.save_freq == 0:
+            self._record_video()
+        return True
+
+    def _record_video(self):
+        import pybullet as p, os
+        from ruff_trainv2 import Ruff_env         # same file
+        path = os.path.join(self.video_dir,
+                            f"{self.name_prefix}_{self.num_timesteps}.mp4")
+
+        env = Ruff_env(render_type="DIRECT")
+        obs, _ = env.reset(commands=[[0.3, 0, 0]])
+        log = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, path)
+
+        for _ in range(self.video_len):
+            act, _ = self.model.predict(obs, deterministic=True)
+            obs, _, d, t, _ = env.step(act)
+            if d or t:
+                obs, _ = env.reset(commands=[[0.3, 0, 0]])
+
+        p.stopStateLogging(log)
+        env.close()
 
 def load_checkpoint_data(json_path: str):
     try:
@@ -158,11 +225,8 @@ def load_checkpoint_data(json_path: str):
         # Extract the values of interest (elapsed_timesteps and kc)
         elapsed_timesteps = data.get('elapsed_timesteps', None)
         n_calls = data.get('n_calls', None)
-        for i in range(n_calls):
-            global kc,kd
-            kc = kc**kd
-        #kc = data.get('kc', None)
-
+        global kc
+        kc = data.get('kc')
         return elapsed_timesteps, kc
     except:
         print("config file not found")
@@ -220,37 +284,45 @@ class Ruff_env(gym.Env):
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
         self.ru = ruff(self.Id,self.command)
         print("created doggo with id: " +str(self.env_rank))
-        #print("-"*20)
         self.og_state = p.saveState()
         self.state = self.ru.get_state()
-        self.timestep = 0
+        self.step_count = 0
         self.curriculum = curriculum
         if self.curriculum:
             self.kc = kc
             self.kd = kd
         else:
-            self.kc = 0
+            self.kc = {
+                "forward": 1,
+                "lateral": 1,
+                "angular": 1,
+                "balance_twist": 1,
+                "rhythm": 1,
+                "efficiency": 1,
+            }
 
 
     def set_curriculum(self):
         self.kc = self.kc ** self.kd
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
         super().reset(seed=seed)
         if seed is not None:
             np.random.seed(seed)
         p.restoreState(stateId=self.og_state)
         
-        #commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-self.kc,self.kc),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-self.kc,self.kc)]]
-        commands = [[random.uniform(0.3,2),1e-9,1e-9]]
+        # commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
+        if commands==None:
+          commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
+          commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
         self.command = random.choice(commands)
         self.ru = ruff(self.Id,self.command)
         self.state = self.ru.get_state().flatten()
         # print("resetting.. doggo no: "+str(self.env_rank))
         # print("new command: "+ str(self.command)+"\n\n")
         # print("kc updated to: "+str(self.kc))
-        self.timestep = 0
+        self.step_count = 0
         return self.state, {}
 
     def step(self, action):
@@ -270,13 +342,13 @@ class Ruff_env(gym.Env):
         for _ in range(self.sim_steps_per_control_step):
             p.stepSimulation()
         #print("moved")
-        self.timestep+=1
+        self.step_count+=1
         if self.ru.is_end():
             done = True
             # print("doggo no:"+str(self.env_rank)+" fell")
         else:
             done = False
-        if self.timestep>2000:
+        if self.step_count>2000:
             truncated = True
             # print("doggo no:"+sstr(self.env_rank)+"completed the episode")
         else:
@@ -332,10 +404,19 @@ if __name__ == "__main__":
             os.mkdir(save_model_path)
         else:
             save_model_path,_ = get_latest_model_path(model_path, prefix)
-        checkpoint_callback = CheckpointCallback(save_freq=checkpoint, save_path=save_model_path,
-                                         name_prefix=prefix)
-        custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,save_path=save_model_path,name_prefix=prefix )
-        callback = CallbackList([custom_checkpoint_callback, TensorboardCallback(),CurriculumCallback()])
+
+        custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,
+                                                              save_path=save_model_path,
+                                                              name_prefix=prefix )
+        video_cb = VideoCheckpointCallback(
+            video_root="../videos",
+            run_id=formatted_time,
+            save_freq=checkpoint,
+            name_prefix=prefix)
+        callback = CallbackList([custom_checkpoint_callback,
+                                 TensorboardCallback(),
+                                 CurriculumCallback(),
+                                 video_cb])
         print("created new save path")
 
         if LOAD:
