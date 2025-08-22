@@ -26,12 +26,19 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import CallbackList
+import torch
+import psutil
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+torch.set_num_threads(1)
 
 
 
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
-kc = 0.15
+kc = 1
 kd = 0.996
 kc = {
     "forward": 1,
@@ -261,7 +268,8 @@ def get_latest_model_path(folder_path, prefix):
 class Ruff_env(gym.Env):
     def __init__(self,rank=1, render_type="gui",command=[0.3,1e-9,1e-9],curriculum = False, kc=0,kd=1):
         super(Ruff_env, self).__init__()
-        # Define the action and observation space
+
+                # Define the action and observation space
         self.env_rank = rank
         self.timestep = 1.0/2000.0
         self.sim_steps_per_control_step = 20
@@ -274,6 +282,9 @@ class Ruff_env(gym.Env):
         else:
             self.physics_client = p.connect(p.DIRECT)  # Use p.GUI for graphical version
         p.setTimeStep(self.timestep)
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
+        p.setRealTimeSimulation(0)
+        p.setPhysicsEngineParameter(numSolverIterations=10, enableFileCaching=0)
         p.setGravity(0, 0, -10)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         planeId = p.loadURDF("plane.urdf")
@@ -332,7 +343,7 @@ class Ruff_env(gym.Env):
             #print(self.kc)
         freq = np.abs(action[12:]).tolist()
         pos_update = action[0:12]
-        pos_update = [math.radians(deg) for deg in pos_update]
+        pos_update = [math.radians(deg*6) for deg in pos_update]
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
         self.ru.update_policy(action)
@@ -373,6 +384,11 @@ def make_env(rank, seed=0, render_type="direct"):
     def _init():
         #print(render_type)
         #print(rank)
+        pr = psutil.Process()
+        try:
+            pr.cpu_affinity([rank % os.cpu_count()])
+        except Exception:
+            pass
         env = Ruff_env(rank, render_type,curriculum=True,kc = kc, kd=kd)
         #env.seed(seed + rank)
         return env
@@ -421,7 +437,7 @@ if __name__ == "__main__":
 
         if LOAD:
             ELAPSED_TIMESTEPS,kc = load_checkpoint_data(save_config_path)
-        env = SubprocVecEnv([make_env(i,render_type=render_type) for i in range(NUM_ENV)])
+        env = SubprocVecEnv([make_env(i,render_type=render_type) for i in range(NUM_ENV)],start_method="spawn")
     else:
         env = Ruff_env(render_type=render_type)
     print("env init done")
@@ -429,7 +445,9 @@ if __name__ == "__main__":
         "MlpPolicy", 
         env, 
         n_steps=1024,
+        batch_size=8192,
         learning_rate=3.5e-4,
+        clip_range=0.2,
         gamma=0.992,
         ent_coef=0.0025,
         target_kl=0.015,
