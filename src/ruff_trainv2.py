@@ -42,19 +42,19 @@ kc = 1
 kd = 0.996
 kc = {
     "forward": 1,
-    "lateral": 0.01,
-    "angular": 0.01,
+    "lateral": 1,
+    "angular": 1,
     "balance_twist": 0.01,
     "rhythm": 0.01,
     "efficiency": 0.01,
 }
 kd = {
-    "forward": 0.996,
-    "lateral": 0.999_999,
-    "angular": 0.999_999,
-    "balance_twist": 0.999,
-    "rhythm": 0.999_999,
-    "efficiency": 0.999_999
+    "forward": 1,
+    "lateral": 0.999_99,
+    "angular": 0.999_99,
+    "balance_twist": 0.999_99,
+    "rhythm": 0.999_99,
+    "efficiency": 0.999_99
 }
 LOAD = False
 testing_mode = False

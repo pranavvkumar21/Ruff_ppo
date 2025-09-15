@@ -188,8 +188,8 @@ class ruff:
         forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
         lateral_velocity = 0.5*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
         angular_velocity = 0.5*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
-        balance = 0.8*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
-        twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
+        balance = 0.4*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
+        twist = -0.9 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
 
         if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
             collision = -3
@@ -223,6 +223,7 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*frequency_err
         joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
+        joint_constraints
         torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
         velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
 
@@ -254,17 +255,17 @@ class ruff:
                         kc["balance_twist"]*twist + \
                         kc["rhythm"]*(foot_stance) + \
                         kc["rhythm"]*(foot_clear) + \
-                        kc["rhythm"]*(foot_zvel1) + \
                         kc["rhythm"]*(frequency_err) + \
                         kc["rhythm"]*(phase_err) + \
                         kc["rhythm"]*(foot_slip) + \
-                        kc["efficiency"]*(policy_smooth) + \
-                        kc["efficiency"]*(joint_constraints) + \
-                        kc["efficiency"]*(torque_penalty) + \
-                        kc["efficiency"]*(velocity_penalty)
+                        kc["efficiency"]*(joint_constraints) 
+                        #kc["efficiency"]*(policy_smooth) + \
+                        #kc["efficiency"]*(torque_penalty) + \
+                        #kc["efficiency"]*(velocity_penalty)
+                        #kc["rhythm"]*(foot_zvel1) + \
 
-        self.reward = forward_velocity + kc["lateral"]*lateral_velocity + kc["angular"]*angular_velocity + \
-                        kc["efficiency"]*joint_constraints
+        #self.reward = forward_velocity + kc["lateral"]*lateral_velocity + kc["angular"]*angular_velocity + \
+        #                kc["efficiency"]*joint_constraints
         infos = {"rewards":rewards}
         return self.reward,infos
 
