@@ -1,12 +1,12 @@
 {
-    "elapsed_timesteps": 25600000,
-    "n_calls": 800000,
+    "elapsed_timesteps": 19200000,
+    "n_calls": 600000,
     "kc": {
         "forward": 1.0,
-        "lateral": 0.9320745693862619,
-        "angular": 0.9320745693862619,
-        "balance_twist": 0.3812616099600154,
-        "rhythm": 0.06958374928841997,
-        "efficiency": 0.06958374928841997
+        "lateral": 0.07986878119665483,
+        "angular": 0.07986878119665483,
+        "balance_twist": 0.9999999999999446,
+        "rhythm": 0.07986878119665483,
+        "efficiency": 0.07986878119665483
     }
 }
