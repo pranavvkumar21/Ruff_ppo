@@ -185,9 +185,9 @@ class ruff:
         lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
         fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
         lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
-        forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
-        lateral_velocity = 0.5*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
-        angular_velocity = 0.5*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
+        forward_velocity = 3*math.exp(-3 * cx * ((fwd_velocity-self.command[0])**2))
+        lateral_velocity = 2*math.exp(-3 * cy * ((lat_velocity-self.command[1])**2))
+        angular_velocity = 1.5*math.exp(-1.5 * cw *((self.base_angular_velocity[2]-self.command[2])**2))
         balance = 0.8*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
         twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
 
