@@ -222,8 +222,8 @@ class ruff:
         foot_zvel1 = (-0.03*foot_zvel1**2)/max(abs(self.command[0]),epsilon_min)
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*frequency_err
-        joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
-        joint_constraints
+        #joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
+        joint_constraints = 0.2*math.exp(-0.3 * cx * (joint_constraints))
         torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
         velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
 
