@@ -24,7 +24,9 @@ def latest_run_dir(root):
 
 def list_checkpoints(run_dir):
     zips = sorted(glob.glob(os.path.join(run_dir, "*.zip")), key=os.path.getmtime)
-    if not zips: raise SystemExit(f"No checkpoints in {run_dir}")
+    if not zips:
+        print("no checkpoints found") 
+        return []
     return zips
 
 def _cam_mats(target, dist=3.0, yaw=50, pitch=-35, w=W, h=H):
@@ -32,9 +34,9 @@ def _cam_mats(target, dist=3.0, yaw=50, pitch=-35, w=W, h=H):
     proj = p.computeProjectionMatrixFOV(fov=60.0, aspect=w / h, nearVal=0.01, farVal=10.0)
     return view, proj
 
-def record_video(model_path, use_gui=USE_GUI):
+def record_video(model_path, use_gui=USE_GUI, output_dir=OUTPUT_DIR):
     base = os.path.splitext(os.path.basename(model_path))[0]
-    out_mp4 = os.path.join(OUTPUT_DIR, f"{base}.mp4")
+    out_mp4 = os.path.join(output_dir, f"{base}.mp4")
     print(f"[INFO] Recording {base} → {out_mp4}")
 
     env = Ruff_env(render_type="gui" if use_gui else "DIRECT")
@@ -88,9 +90,21 @@ def record_video(model_path, use_gui=USE_GUI):
 
 def main():
     run_dir = latest_run_dir(MODELS_ROOT)
+    output_dir = os.path.join(OUTPUT_DIR, os.path.basename(run_dir))
+    os.makedirs(output_dir, exist_ok=True)
     print(f"[INFO] Using run folder {run_dir}")
-    for ck in list_checkpoints(run_dir):
-        record_video(ck, use_gui=USE_GUI)
+    completed_checkpoints = []
+    while True:
+        try:
+            for ck in list_checkpoints(run_dir):
+                if ck not in completed_checkpoints:
+                    record_video(ck, use_gui=USE_GUI, output_dir=output_dir)
+                    completed_checkpoints.append(ck)
+                    print(f"checkpoint: {ck} saved")
+        except KeyboardInterrupt:
+            print("\n[INFO] Interrupted by user, exiting...")
+            break
+        time.sleep(30*60)
     print(f"[INFO] All videos saved to {OUTPUT_DIR}")
 
 if __name__ == "__main__":

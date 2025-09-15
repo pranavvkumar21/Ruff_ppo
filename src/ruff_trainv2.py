@@ -42,19 +42,19 @@ kc = 1
 kd = 0.996
 kc = {
     "forward": 1,
-    "lateral": 0.2,
-    "angular": 0.2,
+    "lateral": 0.01,
+    "angular": 0.01,
     "balance_twist": 0.01,
     "rhythm": 0.01,
     "efficiency": 0.01,
 }
 kd = {
     "forward": 0.996,
-    "lateral": 0.996,
-    "angular": 0.996,
-    "balance_twist": 0.998,
-    "rhythm": 0.9993,
-    "efficiency": 0.9993
+    "lateral": 0.999_999,
+    "angular": 0.999_999,
+    "balance_twist": 0.999,
+    "rhythm": 0.999_999,
+    "efficiency": 0.999_999
 }
 LOAD = False
 testing_mode = False
@@ -105,17 +105,19 @@ class CurriculumCallback(BaseCallback):
 
     def _on_rollout_end(self) -> None:
         # kc update
-        kc = self.training_env.get_attr("kc")[0]
-        kd = self.training_env.get_attr("kd")[0]
+        # kc = self.training_env.get_attr("kc")[0]
+        # kd = self.training_env.get_attr("kd")[0]
         
-        if isinstance(kc, dict):
-            kc_new = {key: min(1.0, value ** kd[key]) for key, value in kc.items()}
-        else:
-            kc_new = min(1.0, kc ** kd)
+        # if isinstance(kc, dict):
+        #     kc_new = {key: min(1.0, value ** kd[key]) for key, value in kc.items()}
+        # else:
+        #     kc_new = min(1.0, kc ** kd)
         
-        self.training_env.set_attr("kc", kc_new)
-        print(f"[Curriculum] kc updated to: {kc_new}")
-
+        # self.training_env.set_attr("kc", kc_new)
+        # print(f"[Curriculum] kc updated to: {kc_new}")
+        #print average kc values across all envs
+        avg_kc = {key: np.mean([env_kc[key] for env_kc in self.training_env.get_attr("kc")]) for key in kc.keys()}
+        print(f"average kc update to {avg_kc}")
         # avg episode length
         if self.step_counts:
             avg_steps = sum(self.step_counts) / len(self.step_counts)
@@ -314,7 +316,7 @@ class Ruff_env(gym.Env):
 
 
     def set_curriculum(self):
-        self.kc = self.kc ** self.kd
+        self.kc = {key: min(1.0, value ** self.kd[key]) for key, value in self.kc.items()}
 
     def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
@@ -325,8 +327,17 @@ class Ruff_env(gym.Env):
         
         # commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
         if commands==None:
-          commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
-          commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
+        #   commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
+        #   commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
+            fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
+            lat = round(random.uniform(-1.0, 1.0), 1)  # e.g. -1.0, -0.9 … 1.0
+            yaw = round(random.uniform(-1.0, 1.0), 1)  # same for angular
+            # choose among forward only, forward+lateral, forward+yaw
+            commands = [
+                [fwd, 0.0, 0.0],
+                [fwd, lat, 0.0],
+                [fwd, 0.0, yaw],
+            ]
         self.command = random.choice(commands)
         self.ru = ruff(self.Id,self.command)
         self.state = self.ru.get_state().flatten()
@@ -338,8 +349,8 @@ class Ruff_env(gym.Env):
 
     def step(self, action):
         if self.curriculum:
-            pass
-            #self.set_curriculum()
+            #update kc
+            self.set_curriculum()
             #print(self.kc)
         freq = np.abs(action[12:]).tolist()
         pos_update = action[0:12]
