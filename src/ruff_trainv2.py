@@ -50,11 +50,11 @@ kc = {
 }
 kd = {
     "forward": 1,
-    "lateral": 0.999_99,
-    "angular": 0.999_99,
-    "balance_twist": 0.999_99,
-    "rhythm": 0.999_99,
-    "efficiency": 0.999_99
+    "lateral": 0.999_994,
+    "angular": 0.999_994,
+    "balance_twist": 0.999_994,
+    "rhythm": 0.999_994,
+    "efficiency": 0.999_994
 }
 LOAD = False
 testing_mode = False

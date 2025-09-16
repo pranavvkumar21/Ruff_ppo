@@ -24,7 +24,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 tf.get_logger().setLevel(logging.ERROR)
 NUM_EPISODES = 100_000
 STEPS_PER_EPISODE = 3_000
-timestep = 1.0/2000.0
+timestep = 1.0/100.0
 num_inputs = (60,)
 gamma= 0.992
 lmbda = 0.95
@@ -150,20 +150,28 @@ class ruff:
         self.foot_height = [p.getClosestPoints(self.id,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=11)[0][8]]
     def move(self):
         self.getpos_error()
-        Kp = 78
-        Kd = 2
-        self.joint_torque = []
-        self.joint_velocity_error = []
+        # Kp = 78
+        # Kd = 2
+        # self.joint_torque = []
+        # self.joint_velocity_error = []
+        # for i in range(len(self.n_joints)):
+        #     vel_err = -self.joint_velocity[i]
+        #     torque = Kp * self.pos_error[i] + Kd * vel_err
+        #     self.joint_torque.append(torque)
+        #     self.joint_velocity_error.append(vel_err)
+        #     p.setJointMotorControl2(
+        #         self.id, self.n_joints[i],
+        #         controlMode=p.TORQUE_CONTROL,
+        #         force=torque
+        #     )
+        max_force = 100
         for i in range(len(self.n_joints)):
-            vel_err = -self.joint_velocity[i]
-            torque = Kp * self.pos_error[i] + Kd * vel_err
-            self.joint_torque.append(torque)
-            self.joint_velocity_error.append(vel_err)
             p.setJointMotorControl2(
                 self.id, self.n_joints[i],
-                controlMode=p.TORQUE_CONTROL,
-                force=torque
-            )
+                controlMode=p.POSITION_CONTROL,
+                targetPosition=self.target_pos[i],
+                force=max_force,)
+                
     def set_frequency(self,freq):
         self.rg_freq = freq
 
@@ -186,9 +194,9 @@ class ruff:
         fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
         lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
         forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
-        lateral_velocity = 0.5*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
-        angular_velocity = 0.5*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
-        balance = 0.4*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
+        lateral_velocity = 1*math.exp(-5 * cy * ((lat_velocity-self.command[1])**2))
+        angular_velocity = 1*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
+        balance = 0.5*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
         twist = -0.9 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
 
         if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
@@ -213,7 +221,7 @@ class ruff:
 
         for i in range(4):
             foot_slip += (self.foot_xvel[i]**2 + self.foot_yvel[i]**2) if self.binary_phase[i] else 0
-            foot_stance += 1 if self.foot_height[i]<0.01 and self.binary_phase[i] else 0
+            foot_stance += 0.8*c1 if self.foot_height[i]<0.01 and self.binary_phase[i] else 0
             foot_clear  += 0.7*c1 if self.foot_height[i]>0.01 and (not self.binary_phase[i]) else 0
             frequency_err += abs(self.rg_freq[i]) if self.binary_phase[i] else 0
             phase_err += 1 if self.is_contact[i] == self.binary_phase[i] else 0
@@ -223,7 +231,7 @@ class ruff:
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*frequency_err
         #joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
-        joint_constraints = 0.2*math.exp(-0.3 * cx * (joint_constraints))
+        joint_constraints = 0.9*math.exp(-0.3 * cx * (joint_constraints))
         torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
         velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
 
