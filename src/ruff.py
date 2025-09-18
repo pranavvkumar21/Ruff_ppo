@@ -139,7 +139,7 @@ class ruff:
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
             self.target_pos[i] += pos_inc[i]
-            self.target_pos[i] = np.clip(self.target_pos[i], self.joint_lower_limits[i], self.joint_upper_limits[i])
+            #self.target_pos[i] = np.clip(self.target_pos[i], self.joint_lower_limits[i], self.joint_upper_limits[i])
 
         return self.target_pos
 
@@ -182,7 +182,7 @@ class ruff:
 
     def get_reward(self,kc=1):
         c1 = c2 = c3 = c4 =  1.2
-        epsilon_min = 0.00001
+        epsilon_min = 0.01
         cx = 1.0/ max(abs(self.command[0]),epsilon_min)
         cy = 1.0/ max(abs(self.command[1]),epsilon_min)
         cw = 1.0/ max(abs(self.command[2]),epsilon_min)
@@ -194,7 +194,7 @@ class ruff:
         fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
         lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
         forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
-        lateral_velocity = 1*math.exp(-5 * cy * ((lat_velocity-self.command[1])**2))
+        lateral_velocity = 1*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
         angular_velocity = 1*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
         balance = 0.5*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
         twist = -0.9 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
@@ -230,10 +230,10 @@ class ruff:
         foot_zvel1 = (-0.03*foot_zvel1**2)/max(abs(self.command[0]),epsilon_min)
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*frequency_err
-        #joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
-        joint_constraints = 0.9*math.exp(-0.3 * cx * (joint_constraints))
-        torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
-        velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
+        joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
+        #joint_constraints = 0.9*math.exp(-0.3 * cx * (joint_constraints))
+        #torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
+        #velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
 
         basic_reward = forward_velocity + lateral_velocity + angular_velocity 
         freq_reward = (foot_stance + balance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth+joint_constraints)
@@ -252,9 +252,9 @@ class ruff:
                    "foot_slip":foot_slip, 
                    "policy_smooth":policy_smooth,
                    "twist":twist,
-                   "complete_reward":self.complete_reward, 
-                   "torque_penalty":torque_penalty,
-                   "velocity_penalty":velocity_penalty,}
+                   "complete_reward":self.complete_reward, }
+                #    "torque_penalty":torque_penalty,
+                #    "velocity_penalty":velocity_penalty,}
         
         self.reward = kc["forward"]*forward_velocity + \
                         kc["lateral"]*lateral_velocity + \

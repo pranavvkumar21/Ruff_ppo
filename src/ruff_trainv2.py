@@ -44,7 +44,7 @@ kc = {
     "forward": 1,
     "lateral": 1,
     "angular": 1,
-    "balance_twist": 0.01,
+    "balance_twist": 0.1,
     "rhythm": 0.01,
     "efficiency": 0.01,
 }
@@ -130,6 +130,11 @@ class TensorboardCallback(BaseCallback):
         super(TensorboardCallback, self).__init__(verbose)
         self.episode_rewards = []  # Store total rewards for episodes
         self.episode_sub_rewards = {}  # Store sub-rewards for episodes
+        self.rollout_idx=0
+
+    def _on_rollout_end(self):
+        self.rollout_idx += 1
+        self.logger.set_step(self.rollout_idx)
 
     def _on_step(self) -> bool:
         # Collect rewards from all environments
