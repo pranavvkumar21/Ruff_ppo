@@ -132,18 +132,15 @@ class TensorboardCallback(BaseCallback):
         self.episode_sub_rewards = {}  # Store sub-rewards for episodes
         self.rollout_idx=0
 
-    def _on_rollout_end(self):
+    def _on_rollout_end(self) -> None:
+        # bump rollout index each time a rollout finishes
         self.rollout_idx += 1
-        self.logger.set_step(self.rollout_idx)
 
     def _on_step(self) -> bool:
-        # Collect rewards from all environments
         rewards = np.array(self.locals['rewards'])
         self.episode_rewards.append(rewards)
 
-        # Assuming `info` dictionary contains sub-rewards as 'rewards'
         infos = self.locals['infos']
-        
         for info in infos:
             if 'rewards' in info:
                 for key, value in info['rewards'].items():
@@ -151,18 +148,20 @@ class TensorboardCallback(BaseCallback):
                         self.episode_sub_rewards[key] = []
                     self.episode_sub_rewards[key].append(value)
 
-        # Check if the episode ended
         if self.locals['dones'].any():
-            # Log the mean reward for the episode
             mean_reward = np.mean([np.sum(rew) for rew in self.episode_rewards])
-            self.logger.record('rollout/ep_rew_mean', mean_reward)
-            # Log sub-rewards (mean of each sub-reward over the episode)
+            self.logger.record('rollout/ep_rew_mean',
+                               mean_reward,
+                               exclude=("stdout",),
+                               step=self.rollout_idx)
+
             for key, sub_reward_list in self.episode_sub_rewards.items():
                 mean_sub_reward = np.mean(sub_reward_list)
-                #print(f"len of infos: {mean_sub_reward}")
-                self.logger.record(f'rollout/sub_reward_{key}_mean', mean_sub_reward)
+                self.logger.record(f'rollout/sub_reward_{key}_mean',
+                                   mean_sub_reward,
+                                   exclude=("stdout",),
+                                   step=self.rollout_idx)
 
-            # Reset episode rewards for next episode
             self.episode_rewards = []
             self.episode_sub_rewards = {}
 
