@@ -26,28 +26,35 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import CallbackList
+import torch
+import psutil
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+torch.set_num_threads(1)
 
 
 
 TOTAL_TIMESTEPS = 98_304_000
 ELAPSED_TIMESTEPS = 0
-kc = 0.15
+kc = 1
 kd = 0.996
 kc = {
     "forward": 1,
-    "lateral": 0.2,
-    "angular": 0.2,
-    "balance_twist": 0.01,
+    "lateral": 1,
+    "angular": 1,
+    "balance_twist": 0.1,
     "rhythm": 0.01,
     "efficiency": 0.01,
 }
 kd = {
-    "forward": 0.996,
-    "lateral": 0.996,
-    "angular": 0.996,
-    "balance_twist": 0.998,
-    "rhythm": 0.9993,
-    "efficiency": 0.9993
+    "forward": 1,
+    "lateral": 0.999_994,
+    "angular": 0.999_994,
+    "balance_twist": 0.999_994,
+    "rhythm": 0.999_994,
+    "efficiency": 0.999_994
 }
 LOAD = False
 testing_mode = False
@@ -98,17 +105,19 @@ class CurriculumCallback(BaseCallback):
 
     def _on_rollout_end(self) -> None:
         # kc update
-        kc = self.training_env.get_attr("kc")[0]
-        kd = self.training_env.get_attr("kd")[0]
+        # kc = self.training_env.get_attr("kc")[0]
+        # kd = self.training_env.get_attr("kd")[0]
         
-        if isinstance(kc, dict):
-            kc_new = {key: min(1.0, value ** kd[key]) for key, value in kc.items()}
-        else:
-            kc_new = min(1.0, kc ** kd)
+        # if isinstance(kc, dict):
+        #     kc_new = {key: min(1.0, value ** kd[key]) for key, value in kc.items()}
+        # else:
+        #     kc_new = min(1.0, kc ** kd)
         
-        self.training_env.set_attr("kc", kc_new)
-        print(f"[Curriculum] kc updated to: {kc_new}")
-
+        # self.training_env.set_attr("kc", kc_new)
+        # print(f"[Curriculum] kc updated to: {kc_new}")
+        #print average kc values across all envs
+        avg_kc = {key: np.mean([env_kc[key] for env_kc in self.training_env.get_attr("kc")]) for key in kc.keys()}
+        print(f"average kc update to {avg_kc}")
         # avg episode length
         if self.step_counts:
             avg_steps = sum(self.step_counts) / len(self.step_counts)
@@ -121,6 +130,10 @@ class TensorboardCallback(BaseCallback):
         super(TensorboardCallback, self).__init__(verbose)
         self.episode_rewards = []  # Store total rewards for episodes
         self.episode_sub_rewards = {}  # Store sub-rewards for episodes
+        self.rollout_idx=0
+
+    def _on_rollout_end(self):
+        self.rollout_idx += 1
 
     def _on_step(self) -> bool:
         # Collect rewards from all environments
@@ -261,7 +274,8 @@ def get_latest_model_path(folder_path, prefix):
 class Ruff_env(gym.Env):
     def __init__(self,rank=1, render_type="gui",command=[0.3,1e-9,1e-9],curriculum = False, kc=0,kd=1):
         super(Ruff_env, self).__init__()
-        # Define the action and observation space
+
+                # Define the action and observation space
         self.env_rank = rank
         self.timestep = 1.0/2000.0
         self.sim_steps_per_control_step = 20
@@ -274,6 +288,9 @@ class Ruff_env(gym.Env):
         else:
             self.physics_client = p.connect(p.DIRECT)  # Use p.GUI for graphical version
         p.setTimeStep(self.timestep)
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
+        p.setRealTimeSimulation(0)
+        p.setPhysicsEngineParameter(numSolverIterations=10, enableFileCaching=0)
         p.setGravity(0, 0, -10)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         planeId = p.loadURDF("plane.urdf")
@@ -303,7 +320,7 @@ class Ruff_env(gym.Env):
 
 
     def set_curriculum(self):
-        self.kc = self.kc ** self.kd
+        self.kc = {key: min(1.0, value ** self.kd[key]) for key, value in self.kc.items()}
 
     def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
@@ -314,8 +331,17 @@ class Ruff_env(gym.Env):
         
         # commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
         if commands==None:
-          commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
-          commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
+        #   commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
+        #   commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
+            fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
+            lat = round(random.uniform(-1.0, 1.0), 1)  # e.g. -1.0, -0.9 … 1.0
+            yaw = round(random.uniform(-1.0, 1.0), 1)  # same for angular
+            # choose among forward only, forward+lateral, forward+yaw
+            commands = [
+                [fwd, 0.0, 0.0],
+                [fwd, lat, 0.0],
+                [fwd, 0.0, yaw],
+            ]
         self.command = random.choice(commands)
         self.ru = ruff(self.Id,self.command)
         self.state = self.ru.get_state().flatten()
@@ -327,12 +353,12 @@ class Ruff_env(gym.Env):
 
     def step(self, action):
         if self.curriculum:
-            pass
-            #self.set_curriculum()
+            #update kc
+            self.set_curriculum()
             #print(self.kc)
         freq = np.abs(action[12:]).tolist()
         pos_update = action[0:12]
-        pos_update = [math.radians(deg) for deg in pos_update]
+        pos_update = [math.radians(deg*6) for deg in pos_update]
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
         self.ru.update_policy(action)
@@ -373,6 +399,11 @@ def make_env(rank, seed=0, render_type="direct"):
     def _init():
         #print(render_type)
         #print(rank)
+        pr = psutil.Process()
+        try:
+            pr.cpu_affinity([rank % os.cpu_count()])
+        except Exception:
+            pass
         env = Ruff_env(rank, render_type,curriculum=True,kc = kc, kd=kd)
         #env.seed(seed + rank)
         return env
@@ -421,7 +452,7 @@ if __name__ == "__main__":
 
         if LOAD:
             ELAPSED_TIMESTEPS,kc = load_checkpoint_data(save_config_path)
-        env = SubprocVecEnv([make_env(i,render_type=render_type) for i in range(NUM_ENV)])
+        env = SubprocVecEnv([make_env(i,render_type=render_type) for i in range(NUM_ENV)],start_method="spawn")
     else:
         env = Ruff_env(render_type=render_type)
     print("env init done")
@@ -429,7 +460,9 @@ if __name__ == "__main__":
         "MlpPolicy", 
         env, 
         n_steps=1024,
+        batch_size=8192,
         learning_rate=3.5e-4,
+        clip_range=0.2,
         gamma=0.992,
         ent_coef=0.0025,
         target_kl=0.015,
