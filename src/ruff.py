@@ -44,7 +44,7 @@ tfd = tfp.distributions
 
 
 class ruff:
-    def __init__(self, id,command):
+    def __init__(self, id,command,timestep=timestep):
         self.id = id
         self.command = command
         self.num_joints = p.getNumJoints(self.id)
@@ -53,8 +53,8 @@ class ruff:
             self.joint_names[str(p.getJointInfo(self.id,i)[1])[2:-1]] = i
 
         self.n_joints = [i for i in range(self.num_joints) ]
-        self.joint_lower_limits = [p.getJointInfo(self.id,i)[2] for i in range(self.num_joints)]
-        self.joint_upper_limits = [p.getJointInfo(self.id,i)[3] for i in range(self.num_joints)]
+        self.joint_lower_limits = [p.getJointInfo(self.id,i)[8] for i in range(self.num_joints)]
+        self.joint_upper_limits = [p.getJointInfo(self.id,i)[9] for i in range(self.num_joints)]
         self.getjointinfo()    #12 joint position and 12 joint velocity
         self.getvelocity()     #6 base velocity velocity
         self.get_base_info()   # 3 base orientation
@@ -64,25 +64,25 @@ class ruff:
         self.policy = [0]*16
         self.prev_policy = self.policy.copy()
         self.target_pos = self.joint_position.copy()
-        self.pos_error = [(i-j)/(2*math.pi) for i,j in zip(self.target_pos,self.joint_position)]  #12 positional error
+        self.og_joint_position = self.joint_position.copy()
+        self.pos_error = [(i-j) for i,j in zip(self.joint_position,self.og_joint_position)]
         self.rg_freq = [0,0,0,0]         #4 rg frequency 1 for each limb
         self.rg_phase = [0,0,0,0]        #8 rg phase 2 for each limb
         self.binary_phase = [0,0,0,0]
         self.reward = 0
-        self.actor_loss = 0
-        self.critic_loss = 0
-        self.reward_history = []
-
+        self.timestep = timestep
+        self.is_end_links = [-1,0,1,3,4,6,7,9,10]
+        self.foot_links = [2,5,8,11]
+        self.foot_end_links = [3,6,9,12]
     def getvelocity(self):
         self.base_linear_velocity,self.base_angular_velocity = p.getBaseVelocity(self.id)
         self.base_linear_velocity = [i for i in self.base_linear_velocity]
         self.base_angular_velocity = [i for i in self.base_angular_velocity]
 
     def getpos_error(self):
-        self.pos_error = [(i-j) for i,j in zip(self.target_pos,self.joint_position)]
+        self.pos_error = [(i-j) for i,j in zip(self.joint_position,self.og_joint_position)]
 
     def getjointinfo(self):
-
         self.joint_position = []
         self.joint_velocity = []
         self.joint_force = []
@@ -100,9 +100,14 @@ class ruff:
         self.base_position = p.getBasePositionAndOrientation(self.id)[0]
 
     def get_link_vel(self):
-        self.foot_zvel = [p.getLinkState(self.id,2,1)[6][2],p.getLinkState(self.id,5,1)[6][2],p.getLinkState(self.id,8,1)[6][2],p.getLinkState(self.id,11,1)[6][2]]
-        self.foot_xvel = [p.getLinkState(self.id,2,1)[6][0],p.getLinkState(self.id,5,1)[6][0],p.getLinkState(self.id,8,1)[6][0],p.getLinkState(self.id,11,1)[6][0]]
-        self.foot_yvel = [p.getLinkState(self.id,2,1)[6][1],p.getLinkState(self.id,5,1)[6][1],p.getLinkState(self.id,8,1)[6][1],p.getLinkState(self.id,11,1)[6][1]]
+        self.foot_zvel = []
+        self.foot_xvel = []
+        self.foot_yvel = []
+        for i in self.foot_links:
+            self.foot_zvel.append(p.getLinkState(self.id,i,1)[6][2])
+            self.foot_xvel.append(p.getLinkState(self.id,i,1)[6][0])
+            self.foot_yvel.append(p.getLinkState(self.id,i,1)[6][1])
+
 
     def get_state(self):
         self.getvelocity()
@@ -133,21 +138,26 @@ class ruff:
 
     def phase_modulator(self):
         for i in range(len(self.rg_phase)):
-            self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*timestep)%(2*math.pi)
+            self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*self.timestep)%(2*math.pi)
             self.binary_phase[i] = True if self.rg_phase[i]<=math.pi else False #True if stance
 
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
             self.target_pos[i] += pos_inc[i]
-            #self.target_pos[i] = np.clip(self.target_pos[i], self.joint_lower_limits[i], self.joint_upper_limits[i])
+            self.target_pos[i] = np.clip(self.target_pos[i], self.joint_lower_limits[i], self.joint_upper_limits[i])
 
         return self.target_pos
 
     def get_contact(self):
-        self.is_contact = [p.getContactPoints(self.id,0,linkIndexA=2)!=(),p.getContactPoints(self.id,0,linkIndexA=5)!=(),
-        p.getContactPoints(self.id,0,linkIndexA=8)!=(),p.getContactPoints(self.id,0,linkIndexA=11)!=()]
+        self.is_contact = []
+        for link in self.foot_links:
+            self.is_contact.append(p.getContactPoints(self.id,0,linkIndexA=link)!=())
+
     def get_height(self):
-        self.foot_height = [p.getClosestPoints(self.id,0,50000.0,linkIndexA=2)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=5)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=8)[0][8],p.getClosestPoints(self.id,0,50000.0,linkIndexA=11)[0][8]]
+        self.footheight = []
+        for link in self.foot_links:
+            self.footheight.append(p.getLinkState(self.id,link)[0][2])
+
     def move(self):
         self.getpos_error()
         # Kp = 78
@@ -179,7 +189,6 @@ class ruff:
         self.prev_policy = self.policy.copy()
         self.policy = actions
 
-
     def get_reward(self,kc=1):
         c1 = c2 = c3 = c4 =  1.2
         epsilon_min = 0.01
@@ -187,23 +196,7 @@ class ruff:
         cy = 1.0/ max(abs(self.command[1]),epsilon_min)
         cw = 1.0/ max(abs(self.command[2]),epsilon_min)
 
-        # transform forward and lateral velocity from base frame 
-        yaw = self.base_orientation[2]-math.pi/2
-        fwd_world_frame = np.array([np.cos(yaw), np.sin(yaw), 0])
-        lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
-        fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
-        lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
-        forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
-        lateral_velocity = 1*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
-        angular_velocity = 1*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
-        balance = 0.5*(math.exp(-2.5 * ((self.base_linear_velocity[2])**2)/max(abs(self.command[0]),epsilon_min)) + math.exp(-2* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))/max(abs(self.command[0]),epsilon_min)))
-        twist = -0.9 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
-
-        if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=():
-            collision = -3
-        else:
-            collision = 0
-
+        #intialize reward components
         foot_slip = 0
         foot_stance = 0
         foot_clear = 0
@@ -214,30 +207,46 @@ class ruff:
         joint_torque_error = 0
         frequency_err = 0
         phase_err = 0
+
+        # transform forward and lateral velocity from base frame 
+        yaw = self.base_orientation[2]-math.pi/2
+        fwd_world_frame = np.array([np.cos(yaw), np.sin(yaw), 0])
+        lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
+        fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
+        lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
+
+        #compute basic rewards
+        forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
+        lateral_velocity = 1*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
+        angular_velocity = 1*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
+        balance = 1*(math.exp(-4 * cx*((self.base_linear_velocity[2])**2)) + math.exp(-4*cx* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))))
+        twist = -0.9 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
+
+        #compute efficiency and frequency rewards
         for i in range(16):
             policy_smooth+=(self.policy[i] - self.prev_policy[i])**2
         for i in range(12):
             joint_constraints += self.pos_error[i]**2
-
         for i in range(4):
             foot_slip += (self.foot_xvel[i]**2 + self.foot_yvel[i]**2) if self.binary_phase[i] else 0
             foot_stance += 0.8*c1 if self.foot_height[i]<0.01 and self.binary_phase[i] else 0
             foot_clear  += 0.7*c1 if self.foot_height[i]>0.01 and (not self.binary_phase[i]) else 0
             frequency_err += abs(self.rg_freq[i]) if self.binary_phase[i] else 0
             phase_err += 1 if self.is_contact[i] == self.binary_phase[i] else 0
-            foot_zvel1 += abs(self.foot_zvel[i])
-        policy_smooth = -0.016 * c4 * (policy_smooth**0.5)/max(abs(self.command[0]),epsilon_min)
-        foot_zvel1 = (-0.03*foot_zvel1**2)/max(abs(self.command[0]),epsilon_min)
+            foot_zvel1 += self.foot_zvel[i]**2
+        #sum and scale rewards
+        policy_smooth = -0.016 * c4 * (policy_smooth**0.5) * cx
+        foot_zvel1 = (-0.03* cx * foot_zvel1)
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
-        frequency_err = -0.03*frequency_err
-        joint_constraints = -0.8*(joint_constraints**0.5)/max(abs(self.command[0]),epsilon_min)
+        frequency_err = -0.03*cx*frequency_err
+        joint_constraints = -0.8*(joint_constraints)*cx
         #joint_constraints = 0.9*math.exp(-0.3 * cx * (joint_constraints))
         #torque_penalty = -0.0012 * c2 * cx * np.linalg.norm(self.joint_torque)
         #velocity_penalty = -0.0008 * c3 * cx * np.linalg.norm(self.joint_velocity_error) ** 2
 
-        basic_reward = forward_velocity + lateral_velocity + angular_velocity 
-        freq_reward = (foot_stance + balance + foot_clear + foot_zvel1  + frequency_err + phase_err + foot_slip + policy_smooth+joint_constraints)
-        efficiency_reward =  twist
+        basic_reward = forward_velocity + lateral_velocity + angular_velocity + balance
+        freq_reward = (foot_stance  + foot_clear  + frequency_err + phase_err )
+        efficiency_reward =  twist + joint_constraints + foot_slip + foot_zvel1 + foot_slip + policy_smooth
         self.complete_reward = basic_reward + freq_reward + efficiency_reward
         rewards = {"forward_velocity":forward_velocity,
                    "lateral_velocity":lateral_velocity,
@@ -252,7 +261,8 @@ class ruff:
                    "foot_slip":foot_slip, 
                    "policy_smooth":policy_smooth,
                    "twist":twist,
-                   "complete_reward":self.complete_reward, }
+                   "complete_reward":self.complete_reward, 
+                   "basic_reward":basic_reward,}
                 #    "torque_penalty":torque_penalty,
                 #    "velocity_penalty":velocity_penalty,}
         
@@ -272,13 +282,11 @@ class ruff:
                         #kc["efficiency"]*(velocity_penalty)
                         #kc["rhythm"]*(foot_zvel1) + \
 
-        #self.reward = forward_velocity + kc["lateral"]*lateral_velocity + kc["angular"]*angular_velocity + \
-        #                kc["efficiency"]*joint_constraints
         infos = {"rewards":rewards}
         return self.reward,infos
 
     def is_end(self):
-        if p.getContactPoints(self.id,0,linkIndexA=-1)!=() or p.getContactPoints(self.id,0,linkIndexA=0)!=() or p.getContactPoints(self.id,0,linkIndexA=1)!=() or p.getContactPoints(self.id,0,linkIndexA=3)!=() or p.getContactPoints(self.id,0,linkIndexA=4)!=() or p.getContactPoints(self.id,0,linkIndexA=6)!=() or p.getContactPoints(self.id,0,linkIndexA=7)!=() or p.getContactPoints(self.id,0,linkIndexA=9)!=() or p.getContactPoints(self.id,0,linkIndexA=10)!=() :
-            return 1
-        else:
-            return 0
+        for link in self.is_end_links:
+            if p.getContactPoints(self.id,0,linkIndexA=link)!=():
+                return 1
+        return 0

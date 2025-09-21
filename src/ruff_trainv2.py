@@ -26,8 +26,19 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import CallbackList
+from stable_baselines3.common.utils import set_random_seed
 import torch
 import psutil
+
+# Set the seeds for reproducibility
+SEED = 42
+
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+tf.random.set_seed(SEED)
+
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -44,7 +55,7 @@ kc = {
     "forward": 1,
     "lateral": 1,
     "angular": 1,
-    "balance_twist": 0.1,
+    "balance_twist": 1,
     "rhythm": 0.01,
     "efficiency": 0.01,
 }
@@ -53,8 +64,8 @@ kd = {
     "lateral": 0.999_994,
     "angular": 0.999_994,
     "balance_twist": 0.999_994,
-    "rhythm": 0.999_994,
-    "efficiency": 0.999_994
+    "rhythm": 0.999_997,
+    "efficiency": 0.999_997
 }
 LOAD = False
 testing_mode = False
@@ -195,39 +206,6 @@ class CustomCheckpointCallback(CheckpointCallback):
 
         return result
 
-class VideoCheckpointCallback(BaseCallback):
-    def __init__(self, video_root, run_id,
-                 save_freq=50_000, video_len=5_000,
-                 name_prefix="ruu_ppo_model", verbose=0):
-        super().__init__(verbose)
-        self.save_freq, self.video_len = save_freq, video_len
-        self.video_dir = os.path.join(video_root, f"videos_{run_id}")
-        os.makedirs(self.video_dir, exist_ok=True)
-        self.name_prefix = name_prefix
-
-    def _on_step(self) -> bool:
-        if self.num_timesteps % self.save_freq == 0:
-            self._record_video()
-        return True
-
-    def _record_video(self):
-        import pybullet as p, os
-        from ruff_trainv2 import Ruff_env         # same file
-        path = os.path.join(self.video_dir,
-                            f"{self.name_prefix}_{self.num_timesteps}.mp4")
-
-        env = Ruff_env(render_type="DIRECT")
-        obs, _ = env.reset(commands=[[0.3, 0, 0]])
-        log = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, path)
-
-        for _ in range(self.video_len):
-            act, _ = self.model.predict(obs, deterministic=True)
-            obs, _, d, t, _ = env.step(act)
-            if d or t:
-                obs, _ = env.reset(commands=[[0.3, 0, 0]])
-
-        p.stopStateLogging(log)
-        env.close()
 
 def load_checkpoint_data(json_path: str):
     try:
@@ -299,7 +277,7 @@ class Ruff_env(gym.Env):
         self.Initial_orientation = p.getQuaternionFromEuler([0,0,math.pi/2])
         self.Id = p.loadURDF("../urdf/ruff.urdf",self.Initial_position, self.Initial_orientation)
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
-        self.ru = ruff(self.Id,self.command)
+        self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         print("created doggo with id: " +str(self.env_rank))
         self.og_state = p.saveState()
         self.state = self.ru.get_state()
@@ -325,14 +303,10 @@ class Ruff_env(gym.Env):
     def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
         super().reset(seed=seed)
-        if seed is not None:
-            np.random.seed(seed)
         p.restoreState(stateId=self.og_state)
         
         # commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
         if commands==None:
-        #   commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
-        #   commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
             fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
             lat = round(random.uniform(-1.0, 1.0), 1)  # e.g. -1.0, -0.9 … 1.0
             yaw = round(random.uniform(-1.0, 1.0), 1)  # same for angular
@@ -343,11 +317,9 @@ class Ruff_env(gym.Env):
                 [fwd, 0.0, yaw],
             ]
         self.command = random.choice(commands)
-        self.ru = ruff(self.Id,self.command)
+        self.command = [random.uniform(0.3,2),0,0]
+        self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         self.state = self.ru.get_state().flatten()
-        # print("resetting.. doggo no: "+str(self.env_rank))
-        # print("new command: "+ str(self.command)+"\n\n")
-        # print("kc updated to: "+str(self.kc))
         self.step_count = 0
         return self.state, {}
 
@@ -358,7 +330,7 @@ class Ruff_env(gym.Env):
             #print(self.kc)
         freq = np.abs(action[12:]).tolist()
         pos_update = action[0:12]
-        pos_update = [math.radians(deg*6) for deg in pos_update]
+        pos_update = [math.radians(deg*2) for deg in pos_update]
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
         self.ru.update_policy(action)
@@ -393,22 +365,23 @@ class Ruff_env(gym.Env):
 
 
 
-# Train PPO Model
-
+# Make environment function for SubprocVecEnv
 def make_env(rank, seed=0, render_type="direct"):
     def _init():
-        #print(render_type)
-        #print(rank)
         pr = psutil.Process()
         try:
             pr.cpu_affinity([rank % os.cpu_count()])
         except Exception:
             pass
         env = Ruff_env(rank, render_type,curriculum=True,kc = kc, kd=kd)
-        #env.seed(seed + rank)
+        env.reset(seed=SEED + rank) 
+        #seed action space and observation space
+        env.action_space.seed(SEED + rank)
+        env.observation_space.seed(SEED + rank)
         return env
     return _init
-
+# set SB3 rollout seed
+set_random_seed(SEED)
 
 if __name__ == "__main__":
     print("--"*50)
@@ -416,6 +389,8 @@ if __name__ == "__main__":
     print(f"testing mode: {testing_mode}")
     print(f"load set to: {LOAD}")
     print(f"number of env: {NUM_ENV}")
+    print(f"render type: {render_type}")
+    print(f"seed: {SEED}")
     print("\n\n")
 
     if not LOAD:
@@ -439,15 +414,10 @@ if __name__ == "__main__":
         custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,
                                                               save_path=save_model_path,
                                                               name_prefix=prefix )
-        video_cb = VideoCheckpointCallback(
-            video_root="../videos",
-            run_id=formatted_time,
-            save_freq=checkpoint,
-            name_prefix=prefix)
         callback = CallbackList([custom_checkpoint_callback,
                                  TensorboardCallback(),
                                  CurriculumCallback(),
-                                 video_cb])
+                                 ])
         print("created new save path")
 
         if LOAD:
@@ -465,9 +435,9 @@ if __name__ == "__main__":
         clip_range=0.2,
         gamma=0.992,
         ent_coef=0.0025,
-        target_kl=0.015,
         verbose=1,
-        policy_kwargs=dict(net_arch=[256, 256]),  # Adjust the policy architecture if needed
+        use_sde=False,
+        policy_kwargs=dict(net_arch=[256, 256], log_std_init=0.0, full_std=True),  # Adjust the policy architecture if needed
         tensorboard_log="../logs/ppo_pybullet_tensorboard/"
     )
     try:
