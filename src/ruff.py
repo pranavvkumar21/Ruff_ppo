@@ -51,13 +51,15 @@ class ruff:
         # links named *_f
         self.foot_tips = [i for i in range(self.num_joints)
                         if p.getJointInfo(self.id, i)[12].decode().endswith("_f")]
+        # print("length of foot tips:", len(self.foot_tips))
 
         # parent link index for each foot tip
         self.foot_links = [p.getJointInfo(self.id, i)[16] for i in self.foot_tips]
-
+        # print("length of foot links:", len(self.foot_links))
         # movable joints
         self.movable_joints = [i for i in range(self.num_joints)
-                       if p.getJointInfo(self.id, i)[2] in (p.JOINT_REVOLUTE, p.JOINT_CONTINUOUS)]
+                       if p.getJointInfo(self.id, i)[2] == p.JOINT_REVOLUTE]
+        # print("length of movable joints:", len(self.movable_joints))
         self.n_joints = [i for i in range(self.num_joints)]
         self.joint_lower_limits = [p.getJointInfo(self.id,i)[8] for i in self.movable_joints]
         self.joint_upper_limits = [p.getJointInfo(self.id,i)[9] for i in self.movable_joints]
@@ -179,9 +181,9 @@ class ruff:
         #         force=torque
         #     )
         max_force = 100
-        for i in self.movable_joints:
+        for i in range(len(self.movable_joints)):
             p.setJointMotorControl2(
-                self.id, i,
+                self.id, self.movable_joints[i],
                 controlMode=p.POSITION_CONTROL,
                 targetPosition=self.target_pos[i],
                 force=max_force,)
