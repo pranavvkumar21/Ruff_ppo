@@ -13,13 +13,7 @@
   </gazebo>
   <!-- adding imu sensor to the base link -->
   <!--IMU : joint , link , sensor  -->
-  <link name="root_link">
-</link>
-  <joint name="root_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0"/>
-    <parent link="root_link"/>
-    <child link="base_link"/>
-  </joint>
+
   <link name="base_link">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 -0.02"/>

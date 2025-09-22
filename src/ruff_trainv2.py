@@ -61,8 +61,8 @@ kd = {
     "lateral": 0.999_994,
     "angular": 0.999_994,
     "balance_twist": 0.999_994,
-    "rhythm": 0.999_997,
-    "efficiency": 0.999_997
+    "rhythm": 0.999_993,
+    "efficiency": 0.999_993
 }
 LOAD = False
 testing_mode = False
@@ -459,16 +459,28 @@ if __name__ == "__main__":
     else:
         obs, info = env.reset()
         count = 0
+        #initialise emptyy rewards dict
+        rewards_dict = {}
         for i in range(10000):
 
             action, _states = model.predict(obs, deterministic=True)
             obs, rewards, done, trunc, info = env.step(action)
-            kc = kc**kd
-
+            #sum rewards to rewards dict
+            for key, value in info['rewards'].items():
+                if key not in rewards_dict:
+                    rewards_dict[key] = 0
+                rewards_dict[key] += value
+            
+            count += 1
             if done or trunc:
                 env.reset()
-                count+=1
+                #divide each reward by count
+                for key in rewards_dict.keys():
+                    rewards_dict[key] = rewards_dict[key]/count
                 print("episode "+str(count)+ " has been completed")
+                print("rewards so far: "+str(rewards_dict))
+                rewards_dict = {}
+                count = 0
         # Check if the environment follows the Gym API
         #check_env(env)
 
