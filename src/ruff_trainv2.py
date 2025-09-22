@@ -2,12 +2,9 @@
 import logging
 import os
 import warnings
-import tensorflow as tf
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-tf.get_logger().setLevel(logging.ERROR)
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -37,7 +34,7 @@ os.environ["PYTHONHASHSEED"] = str(SEED)
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
-tf.random.set_seed(SEED)
+
 
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -56,8 +53,8 @@ kc = {
     "lateral": 1,
     "angular": 1,
     "balance_twist": 1,
-    "rhythm": 0.01,
-    "efficiency": 0.01,
+    "rhythm": 0.05,
+    "efficiency": 0.05,
 }
 kd = {
     "forward": 1,
@@ -274,8 +271,8 @@ class Ruff_env(gym.Env):
         planeId = p.loadURDF("plane.urdf")
         p.changeDynamics(planeId, -1, lateralFriction=0.75)
         self.Initial_position = [0,0.0,0.45]
-        self.Initial_orientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-        self.Id = p.loadURDF("../urdf/ruff.urdf",self.Initial_position, self.Initial_orientation)
+        self.Initial_orientation = p.getQuaternionFromEuler([0,0,0])
+        self.Id = p.loadURDF("../urdf/ruff_new.urdf",self.Initial_position, self.Initial_orientation)
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
         self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         print("created doggo with id: " +str(self.env_rank))

@@ -2,11 +2,7 @@ import pybullet as p
 import time
 import pybullet_data
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.layers import Input,Dense
-import tensorflow_probability as tfp
+
 import math
 from os.path import exists
 import os
@@ -19,9 +15,7 @@ import warnings
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=UserWarning, message="A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy")
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-tf.get_logger().setLevel(logging.ERROR)
 NUM_EPISODES = 100_000
 STEPS_PER_EPISODE = 3_000
 timestep = 1.0/100.0
@@ -40,7 +34,7 @@ epsilon_min = 0.01
 import os
 urdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"urdf")
 #print(os.listdir(os.path.dirname(os.path.abspath(__file__))))
-tfd = tfp.distributions
+
 
 
 class ruff:
@@ -50,11 +44,25 @@ class ruff:
         self.num_joints = p.getNumJoints(self.id)
         self.joint_names = {}
         for i in range(self.num_joints):
-            self.joint_names[str(p.getJointInfo(self.id,i)[1])[2:-1]] = i
+            ji = p.getJointInfo(self.id, i)
+            jname = ji[1].decode()
+            self.joint_names[jname] = i
 
-        self.n_joints = [i for i in range(self.num_joints) ]
-        self.joint_lower_limits = [p.getJointInfo(self.id,i)[8] for i in range(self.num_joints)]
-        self.joint_upper_limits = [p.getJointInfo(self.id,i)[9] for i in range(self.num_joints)]
+        # links named *_f
+        self.foot_tips = [i for i in range(self.num_joints)
+                        if p.getJointInfo(self.id, i)[12].decode().endswith("_f")]
+
+        # parent link index for each foot tip
+        self.foot_links = [p.getJointInfo(self.id, i)[16] for i in self.foot_tips]
+
+        # movable joints
+        self.movable_joints = [i for i in range(self.num_joints)
+                       if p.getJointInfo(self.id, i)[2] in (p.JOINT_REVOLUTE, p.JOINT_CONTINUOUS)]
+        self.n_joints = [i for i in range(self.num_joints)]
+        self.joint_lower_limits = [p.getJointInfo(self.id,i)[8] for i in self.movable_joints]
+        self.joint_upper_limits = [p.getJointInfo(self.id,i)[9] for i in self.movable_joints]
+        all_links = set(range(-1, self.num_joints))          # includes base -1
+        self.is_end_links = list(all_links - set(self.foot_tips) - set(self.foot_links))
         self.getjointinfo()    #12 joint position and 12 joint velocity
         self.getvelocity()     #6 base velocity velocity
         self.get_base_info()   # 3 base orientation
@@ -71,9 +79,7 @@ class ruff:
         self.binary_phase = [0,0,0,0]
         self.reward = 0
         self.timestep = timestep
-        self.is_end_links = [-1,0,1,3,4,6,7,9,10]
-        self.foot_links = [2,5,8,11]
-        self.foot_end_links = [3,6,9,12]
+
     def getvelocity(self):
         self.base_linear_velocity,self.base_angular_velocity = p.getBaseVelocity(self.id)
         self.base_linear_velocity = [i for i in self.base_linear_velocity]
@@ -87,8 +93,8 @@ class ruff:
         self.joint_velocity = []
         self.joint_force = []
         self.joint_torque = []
-        n_joints = [i for i in range(self.num_joints) ]
-        self.joint_state = p.getJointStates(self.id,n_joints)
+        
+        self.joint_state = p.getJointStates(self.id,self.movable_joints)
         for i in self.joint_state:
             self.joint_position.append((i[0]))
             self.joint_velocity.append(i[1])
@@ -103,7 +109,7 @@ class ruff:
         self.foot_zvel = []
         self.foot_xvel = []
         self.foot_yvel = []
-        for i in self.foot_links:
+        for i in self.foot_tips:
             self.foot_zvel.append(p.getLinkState(self.id,i,1)[6][2])
             self.foot_xvel.append(p.getLinkState(self.id,i,1)[6][0])
             self.foot_yvel.append(p.getLinkState(self.id,i,1)[6][1])
@@ -150,13 +156,11 @@ class ruff:
 
     def get_contact(self):
         self.is_contact = []
-        for link in self.foot_links:
+        for link in self.foot_tips:
             self.is_contact.append(p.getContactPoints(self.id,0,linkIndexA=link)!=())
 
     def get_height(self):
-        self.footheight = []
-        for link in self.foot_links:
-            self.footheight.append(p.getLinkState(self.id,link)[0][2])
+        self.foot_height = [p.getLinkState(self.id, link, 1)[0][2] for link in self.foot_tips]
 
     def move(self):
         self.getpos_error()
@@ -164,20 +168,20 @@ class ruff:
         # Kd = 2
         # self.joint_torque = []
         # self.joint_velocity_error = []
-        # for i in range(len(self.n_joints)):
+        # for i in self.movable_joints):
         #     vel_err = -self.joint_velocity[i]
         #     torque = Kp * self.pos_error[i] + Kd * vel_err
         #     self.joint_torque.append(torque)
         #     self.joint_velocity_error.append(vel_err)
         #     p.setJointMotorControl2(
-        #         self.id, self.n_joints[i],
+        #         self.id, i,
         #         controlMode=p.TORQUE_CONTROL,
         #         force=torque
         #     )
         max_force = 100
-        for i in range(len(self.n_joints)):
+        for i in self.movable_joints:
             p.setJointMotorControl2(
-                self.id, self.n_joints[i],
+                self.id, i,
                 controlMode=p.POSITION_CONTROL,
                 targetPosition=self.target_pos[i],
                 force=max_force,)
@@ -209,14 +213,14 @@ class ruff:
         phase_err = 0
 
         # transform forward and lateral velocity from base frame 
-        yaw = self.base_orientation[2]-math.pi/2
+        yaw = self.base_orientation[2]
         fwd_world_frame = np.array([np.cos(yaw), np.sin(yaw), 0])
         lat_world_frame = np.array([-np.sin(yaw), np.cos(yaw), 0])
         fwd_velocity = np.dot(self.base_linear_velocity, fwd_world_frame)
         lat_velocity = np.dot(self.base_linear_velocity, lat_world_frame)
 
         #compute basic rewards
-        forward_velocity = 4*math.exp(-4 * cx * ((fwd_velocity-self.command[0])**2))
+        forward_velocity = 3*math.exp(-3 * cx * ((fwd_velocity-self.command[0])**2))
         lateral_velocity = 1*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
         angular_velocity = 1*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
         balance = 1*(math.exp(-4 * cx*((self.base_linear_velocity[2])**2)) + math.exp(-4*cx* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))))
@@ -246,7 +250,7 @@ class ruff:
 
         basic_reward = forward_velocity + lateral_velocity + angular_velocity + balance
         freq_reward = (foot_stance  + foot_clear  + frequency_err + phase_err )
-        efficiency_reward =  twist + joint_constraints + foot_slip + foot_zvel1 + foot_slip + policy_smooth
+        efficiency_reward =  twist + joint_constraints +  foot_zvel1 + foot_slip + policy_smooth
         self.complete_reward = basic_reward + freq_reward + efficiency_reward
         rewards = {"forward_velocity":forward_velocity,
                    "lateral_velocity":lateral_velocity,
