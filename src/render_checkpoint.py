@@ -74,7 +74,15 @@ def record_video(model_path, use_gui=USE_GUI, output_dir=OUTPUT_DIR):
                 W, H, view, proj,
                 renderer=p.ER_BULLET_HARDWARE_OPENGL if use_gui else p.ER_TINY_RENDERER
             )
-            frame = np.reshape(rgba, (H, W, 4))[:, :, :3]
+            
+            arr = np.asarray(rgba)
+            if arr.dtype.kind == "f":
+                arr = (arr * 255.0).clip(0,255).astype(np.uint8)
+            else:
+                arr = arr.astype(np.uint8)
+
+            frame = arr.reshape(H, W, 4)[..., :3]
+            frame = np.ascontiguousarray(frame)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             writer.write(frame)
 
