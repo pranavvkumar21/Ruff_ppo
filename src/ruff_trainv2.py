@@ -61,8 +61,8 @@ kd = {
     "lateral": 0.999_994,
     "angular": 0.999_994,
     "balance_twist": 0.999_994,
-    "rhythm": 0.999_993,
-    "efficiency": 0.999_993
+    "rhythm": 0.999_995,
+    "efficiency": 0.999_995
 }
 LOAD = False
 testing_mode = False
@@ -262,22 +262,44 @@ class Ruff_env(gym.Env):
             self.physics_client = p.connect(p.GUI)
         else:
             self.physics_client = p.connect(p.DIRECT)  # Use p.GUI for graphical version
+        #configure pybullet
         p.setTimeStep(self.timestep)
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
         p.setRealTimeSimulation(0)
         p.setPhysicsEngineParameter(numSolverIterations=10, enableFileCaching=0)
         p.setGravity(0, 0, -10)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        planeId = p.loadURDF("plane.urdf")
-        p.changeDynamics(planeId, -1, lateralFriction=0.75)
-        self.Initial_position = [0,0.0,0.45]
+        
+        #load plane
+        #planeId = p.loadURDF("plane.urdf")
+        #random select frequency, amplitude, roughness
+        frequency = random.uniform(0.0, 0.3)
+        amplitude = random.uniform(0.0, 0.1)
+        roughness = random.uniform(0.0, 0.05)
+        terrain = self.load_sinusoidal_heightfield(frequency=frequency, amplitude=amplitude, roughness=roughness, scale=0.05)
+        #get spawn height
+        ground_height = self.get_ground_height()
+        spawn_z = ground_height + 0.45 
+        #load ruff
+        self.Initial_position = [0,0.0,spawn_z]
         self.Initial_orientation = p.getQuaternionFromEuler([0,0,0])
         self.Id = p.loadURDF("../urdf/ruff_new.urdf",self.Initial_position, self.Initial_orientation)
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
+
+        #change friction
+        p.changeDynamics(terrain, -1, lateralFriction=1.0)
+        for j in range(p.getNumJoints(self.Id)):
+            p.changeDynamics(self.Id, j, lateralFriction=1.0)
+        p.changeDynamics(self.Id, -1, lateralFriction=1.0)
+
         self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         print("created doggo with id: " +str(self.env_rank))
+        #get initial state
         self.og_state = p.saveState()
         self.state = self.ru.get_state()
+        #set base length
+        self.get_robot_base_length()
+
         self.step_count = 0
         self.curriculum = curriculum
         if self.curriculum:
@@ -292,17 +314,79 @@ class Ruff_env(gym.Env):
                 "rhythm": 1,
                 "efficiency": 1,
             }
+    def get_ground_height(self, x=0.0, y=0.0):
+        ray = p.rayTest([x, y, 10], [x, y, -10])
+        hit = ray[0]
+        if hit[0] != -1:   # hit something
+            return hit[3][2]  # z of hit
+        return 0.0
 
+    def load_sinusoidal_heightfield(self,
+                                    numRows=512,
+                                    numCols=512,
+                                    frequency=0.3,
+                                    amplitude=0.1,
+                                    roughness=0.05,
+                                    scale=0.05):
+
+        # remove old ground
+        for body in range(p.getNumBodies()):
+            name = p.getBodyInfo(body)[1].decode("utf-8")
+            if name in ["plane", "heightfield"]:
+                p.removeBody(body)
+
+        # grid
+        xs = np.linspace(0, 2 * np.pi, numCols)
+        ys = np.linspace(0, 2 * np.pi, numRows)
+        X, Y = np.meshgrid(xs, ys)
+
+        # base sinusoidal hills
+        Z = amplitude * np.sin(frequency * X) * np.cos(frequency * Y)
+
+        # add roughness
+        Z += np.random.uniform(low=-roughness,
+                            high=roughness,
+                            size=Z.shape)
+
+        heightfieldData = Z.flatten().astype(np.float32)
+
+        # create collision shape
+        terrainShape = p.createCollisionShape(
+            shapeType=p.GEOM_HEIGHTFIELD,
+            meshScale=[scale, scale, 1],
+            heightfieldTextureScaling=numRows/2,
+            heightfieldData=heightfieldData,
+            numHeightfieldRows=numRows,
+            numHeightfieldColumns=numCols
+        )
+        terrain = p.createMultiBody(0, terrainShape)
+
+        # optional texture
+        tex_path = os.path.join(pybullet_data.getDataPath(), "grass.png")
+        if os.path.exists(tex_path):
+            texId = p.loadTexture(tex_path)
+            p.changeVisualShape(terrain, -1, textureUniqueId=texId)
+        else:
+            print("No texture found, using default gray")
+
+
+        # reset ground
+        p.resetBasePositionAndOrientation(terrain, [0, 0, 0], [0, 0, 0, 1])
+        print(f"Loaded sinusoidal terrain f={frequency}, A={amplitude}, rough={roughness}")
+        return terrain
 
     def set_curriculum(self):
         self.kc = {key: min(1.0, value ** self.kd[key]) for key, value in self.kc.items()}
+
+    def get_robot_base_length(self):
+        aabb_min, aabb_max = p.getAABB(self.Id, -1)
+        self.base_length = aabb_max[0] - aabb_min[0]
 
     def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
         super().reset(seed=seed)
         p.restoreState(stateId=self.og_state)
         
-        # commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
         if commands==None:
             fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
             lat = round(random.uniform(-1.0, 1.0), 1)  # e.g. -1.0, -0.9 … 1.0
@@ -311,10 +395,9 @@ class Ruff_env(gym.Env):
             commands = [
                 [fwd, 0.0, 0.0],
                 [fwd, lat, 0.0],
-                [fwd, 0.0, yaw],
+                [fwd, 0.0, yaw],    
             ]
         self.command = random.choice(commands)
-        self.command = [random.uniform(0.3,2),0,0]
         self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         self.state = self.ru.get_state().flatten()
         self.step_count = 0
@@ -325,18 +408,34 @@ class Ruff_env(gym.Env):
             #update kc
             self.set_curriculum()
             #print(self.kc)
+        #frequency in range 0-1
         freq = np.abs(action[12:]).tolist()
+        #joint angle increments in range -2 to 2 degrees
         pos_update = action[0:12]
         pos_update = [math.radians(deg*2) for deg in pos_update]
+
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
         self.ru.update_policy(action)
-        tp = self.ru.update_target_pos(pos_update)
-        #print(tp)
+        self.ru.update_target_pos(pos_update)
+
         self.ru.move()
+
+        #push logic
+        push_active = False
+        if self.step_count > 150:
+            sim_time = self.step_count * self.timestep * self.sim_steps_per_control_step
+            push_active = (sim_time % 3.0) < 0.2
+        if push_active:
+            force = random.choice([-1,1])*random.uniform(20,50)
+            offset = random.uniform(-self.base_length/2,self.base_length/2)
+        
+        #step simulation
         for _ in range(self.sim_steps_per_control_step):
+            if push_active:
+                p.applyExternalForce(self.Id, -1, [0,force,0], [offset,0,0], p.LINK_FRAME)
             p.stepSimulation()
-        #print("moved")
+
         self.step_count+=1
         if self.ru.is_end():
             done = True

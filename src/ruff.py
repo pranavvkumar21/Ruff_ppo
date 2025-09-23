@@ -88,7 +88,7 @@ class ruff:
         self.base_angular_velocity = [i for i in self.base_angular_velocity]
 
     def getpos_error(self):
-        self.pos_error = [(i-j) for i,j in zip(self.joint_position,self.og_joint_position)]
+        self.pos_error = [(i-j) for i,j in zip(self.joint_position,self.target_pos)]
 
     def getjointinfo(self):
         self.joint_position = []
@@ -104,8 +104,12 @@ class ruff:
             self.joint_torque.append(i[3]/50.0)
 
     def get_base_info(self):
-        self.base_orientation = p.getEulerFromQuaternion(p.getBasePositionAndOrientation(self.id)[1])
-        self.base_position = p.getBasePositionAndOrientation(self.id)[0]
+        pos, quat = p.getBasePositionAndOrientation(self.id)
+        self.base_position = pos
+        self.base_orientation = p.getEulerFromQuaternion(quat)  # roll pitch yaw
+        R = p.getMatrixFromQuaternion(quat)  # row-major: [r11,r12,r13, r21,r22,r23, r31,r32,r33]
+        # world gravity (0,0,-1) expressed in base frame = R^T * g_world
+        self.base_gravity = [-R[2], -R[5], -R[8]]  # third column, negated
 
     def get_link_vel(self):
         self.foot_zvel = []
@@ -126,20 +130,23 @@ class ruff:
         self.getpos_error()
         self.get_link_vel()
         freq_state = []
+        #commands
+        state = list(self.command) #dim 3
+        # base velocity
+        state = state + list([i/10 for i in self.base_linear_velocity])+list([i/10 for i in self.base_angular_velocity]) #dim 6
+        # base orientation
+        state = state + list([i/(2*math.pi) for i in self.base_gravity]) #dim 3 
+        # joint position and velocity
+        state = state + list(i/(2*math.pi) for i in self.joint_position)+list(i/10 for i in self.joint_velocity) #dim 24
+        #joint position error
+        state = state + list([i/(2*math.pi) for i in self.pos_error]) #dim 12
+        #rg frequency
+        state = state + list(i for i in self.rg_freq) #dim 4
+        #rg phase
         for i in range(4):
             freq_state = freq_state + [math.sin(self.rg_phase[i]),math.cos(self.rg_phase[i])]
-        state = list(self.command)
-        state = state + list([i/10 for i in self.base_linear_velocity])+list([i/10 for i in self.base_angular_velocity])
-        state = state + list(i/(2*math.pi) for i in self.joint_position)+list(i/10 for i in self.joint_velocity)
-
-        state = state + list([i/(2*math.pi) for i in self.pos_error])
-
-        state = state + list(i/(2*math.pi) for i in self.rg_freq)
-
         state = state + freq_state
-
-        state = state + list([i/(2*math.pi) for i in self.base_orientation])
-
+        #convert to numpy array
         state = np.array(state,dtype="float32")
         state = np.reshape(state, (1,-1))
         return state
@@ -147,7 +154,7 @@ class ruff:
     def phase_modulator(self):
         for i in range(len(self.rg_phase)):
             self.rg_phase[i] = (self.rg_phase[i]+2*math.pi*self.rg_freq[i]*self.timestep)%(2*math.pi)
-            self.binary_phase[i] = True if self.rg_phase[i]<=math.pi else False #True if stance
+            self.binary_phase[i] = True if self.rg_phase[i]<math.pi else False #True if stance
 
     def update_target_pos(self,pos_inc):
         for i in range(len(self.target_pos)):
@@ -162,7 +169,14 @@ class ruff:
             self.is_contact.append(p.getContactPoints(self.id,0,linkIndexA=link)!=())
 
     def get_height(self):
-        self.foot_height = [p.getLinkState(self.id, link, 1)[0][2] for link in self.foot_tips]
+        self.foot_height = []
+        for link in self.foot_tips:
+            # set a small search distance (e.g., 0.05–0.1 m)
+            pts = p.getClosestPoints(self.id, 0, 0.1, linkIndexA=link)
+            if pts:
+                self.foot_height.append(pts[0][8])  # distance
+            else:
+                self.foot_height.append(0.1)        # cap if far from ground
 
     def move(self):
         self.getpos_error()
@@ -180,7 +194,7 @@ class ruff:
         #         controlMode=p.TORQUE_CONTROL,
         #         force=torque
         #     )
-        max_force = 100
+        max_force = 18
         for i in range(len(self.movable_joints)):
             p.setJointMotorControl2(
                 self.id, self.movable_joints[i],
@@ -223,25 +237,25 @@ class ruff:
 
         #compute basic rewards
         forward_velocity = 3*math.exp(-3 * cx * ((fwd_velocity-self.command[0])**2))
-        lateral_velocity = 1*math.exp(-4 * cy * ((lat_velocity-self.command[1])**2))
-        angular_velocity = 1*math.exp(-1.5 *((self.base_angular_velocity[2]-self.command[2])**2))
-        balance = 1*(math.exp(-4 * cx*((self.base_linear_velocity[2])**2)) + math.exp(-4*cx* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))))
-        twist = -0.9 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
+        lateral_velocity = 2*math.exp(-3 * cy * ((lat_velocity-self.command[1])**2))
+        angular_velocity = 1.5*math.exp(-1.5 *cw*((self.base_angular_velocity[2]-self.command[2])**2))
+        balance = 1.3*(math.exp(-4 * cx*((self.base_linear_velocity[2])**2)) + math.exp(-4*cx* ((self.base_angular_velocity[0]**2+ self.base_angular_velocity[1]**2))))
+        twist = -0.6 *((self.base_orientation[0]**2 + self.base_orientation[1]**2)**0.5) * cx
 
         #compute efficiency and frequency rewards
         for i in range(16):
             policy_smooth+=(self.policy[i] - self.prev_policy[i])**2
         for i in range(12):
-            joint_constraints += self.pos_error[i]**2
+            joint_constraints += (self.joint_position[i]-self.og_joint_position[i])**2
         for i in range(4):
             foot_slip += (self.foot_xvel[i]**2 + self.foot_yvel[i]**2) if self.binary_phase[i] else 0
-            foot_stance += 0.8*c1 if self.foot_height[i]<0.01 and self.binary_phase[i] else 0
+            foot_stance += 1 if self.foot_height[i]<0.01 and self.binary_phase[i] else 0
             foot_clear  += 0.7*c1 if self.foot_height[i]>0.01 and (not self.binary_phase[i]) else 0
             frequency_err += abs(self.rg_freq[i]) if self.binary_phase[i] else 0
             phase_err += 1 if self.is_contact[i] == self.binary_phase[i] else 0
             foot_zvel1 += self.foot_zvel[i]**2
         #sum and scale rewards
-        policy_smooth = -0.016 * c4 * (policy_smooth**0.5) * cx
+        policy_smooth = -0.016 * c4 * (policy_smooth) * cx
         foot_zvel1 = (-0.03* cx * foot_zvel1)
         foot_slip = -0.07*(foot_slip**0.5)/max(abs(self.command[0]),epsilon_min)
         frequency_err = -0.03*cx*frequency_err
