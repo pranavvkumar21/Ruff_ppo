@@ -53,19 +53,19 @@ kc = {
     "lateral": 1,
     "angular": 1,
     "balance_twist": 1,
-    "rhythm": 0.05,
-    "efficiency": 0.05,
+    "rhythm": 0.01,
+    "efficiency": 0.01,
 }
 kd = {
     "forward": 1,
     "lateral": 0.999_994,
     "angular": 0.999_994,
     "balance_twist": 0.999_994,
-    "rhythm": 0.999_995,
-    "efficiency": 0.999_995
+    "rhythm": 0.999_998,
+    "efficiency": 0.999_998,
 }
 LOAD = False
-testing_mode = False
+testing_mode = True
 checkpoint = 50_000
 
 now = datetime.now()
@@ -250,36 +250,40 @@ class Ruff_env(gym.Env):
     def __init__(self,rank=1, render_type="gui",command=[0.3,1e-9,1e-9],curriculum = False, kc=0,kd=1):
         super(Ruff_env, self).__init__()
 
-                # Define the action and observation space
         self.env_rank = rank
         self.timestep = 1.0/2000.0
         self.sim_steps_per_control_step = 20
         self.action_space = spaces.Box(low=-1, high=1, shape=(16,), dtype=np.float32)
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(60,), dtype=np.float64)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(60,), dtype=np.float32)
         self.command = command
+
         # Initialize PyBullet
         if render_type == "gui":
             self.physics_client = p.connect(p.GUI)
         else:
-            self.physics_client = p.connect(p.DIRECT)  # Use p.GUI for graphical version
+            self.physics_client = p.connect(p.DIRECT) 
+
         #configure pybullet
-        p.setTimeStep(self.timestep)
+        # p.setTimeStep(self.timestep)
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
         p.setRealTimeSimulation(0)
         p.setPhysicsEngineParameter(numSolverIterations=10, enableFileCaching=0)
+        p.setPhysicsEngineParameter(
+            fixedTimeStep=self.sim_steps_per_control_step,
+            numSubSteps=self.sim_steps_per_control_step
+        )
         p.setGravity(0, 0, -10)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         
-        #load plane
-        #planeId = p.loadURDF("plane.urdf")
-        #random select frequency, amplitude, roughness
         frequency = random.uniform(0.0, 0.3)
         amplitude = random.uniform(0.0, 0.1)
         roughness = random.uniform(0.0, 0.05)
-        terrain = self.load_sinusoidal_heightfield(frequency=frequency, amplitude=amplitude, roughness=roughness, scale=0.05)
+        self.terrain = self.load_sinusoidal_heightfield(frequency=frequency, amplitude=amplitude, roughness=roughness, scale=0.2)
+        
         #get spawn height
         ground_height = self.get_ground_height()
         spawn_z = ground_height + 0.45 
+        
         #load ruff
         self.Initial_position = [0,0.0,spawn_z]
         self.Initial_orientation = p.getQuaternionFromEuler([0,0,0])
@@ -287,17 +291,16 @@ class Ruff_env(gym.Env):
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
 
         #change friction
-        p.changeDynamics(terrain, -1, lateralFriction=1.0)
+        p.changeDynamics(self.terrain, -1, lateralFriction=1.0)
         for j in range(p.getNumJoints(self.Id)):
             p.changeDynamics(self.Id, j, lateralFriction=1.0)
         p.changeDynamics(self.Id, -1, lateralFriction=1.0)
 
-        self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
+        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         print("created doggo with id: " +str(self.env_rank))
-        #get initial state
-        self.og_state = p.saveState()
+
         self.state = self.ru.get_state()
-        #set base length
+
         self.get_robot_base_length()
 
         self.step_count = 0
@@ -322,12 +325,12 @@ class Ruff_env(gym.Env):
         return 0.0
 
     def load_sinusoidal_heightfield(self,
-                                    numRows=512,
-                                    numCols=512,
+                                    numRows=128,
+                                    numCols=128,
                                     frequency=0.3,
                                     amplitude=0.1,
                                     roughness=0.05,
-                                    scale=0.05):
+                                    scale=0.2):
 
         # remove old ground
         for body in range(p.getNumBodies()):
@@ -361,18 +364,9 @@ class Ruff_env(gym.Env):
         )
         terrain = p.createMultiBody(0, terrainShape)
 
-        # optional texture
-        tex_path = os.path.join(pybullet_data.getDataPath(), "grass.png")
-        if os.path.exists(tex_path):
-            texId = p.loadTexture(tex_path)
-            p.changeVisualShape(terrain, -1, textureUniqueId=texId)
-        else:
-            print("No texture found, using default gray")
-
-
         # reset ground
         p.resetBasePositionAndOrientation(terrain, [0, 0, 0], [0, 0, 0, 1])
-        print(f"Loaded sinusoidal terrain f={frequency}, A={amplitude}, rough={roughness}")
+
         return terrain
 
     def set_curriculum(self):
@@ -385,8 +379,16 @@ class Ruff_env(gym.Env):
     def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
         super().reset(seed=seed)
-        p.restoreState(stateId=self.og_state)
         
+
+        p.resetBasePositionAndOrientation(self.Id,
+                                    self.Initial_position,
+                                    self.Initial_orientation)
+        p.resetBaseVelocity(self.Id, [0,0,0], [0,0,0])
+        for j in self.ru.movable_joints:                # revolute
+            p.resetJointState(self.Id, j, targetValue=0.0, targetVelocity=0.0)
+        
+
         if commands==None:
             fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
             lat = round(random.uniform(-1.0, 1.0), 1)  # e.g. -1.0, -0.9 … 1.0
@@ -398,21 +400,17 @@ class Ruff_env(gym.Env):
                 [fwd, 0.0, yaw],    
             ]
         self.command = random.choice(commands)
-        self.ru = ruff(self.Id,self.command,timestep=self.timestep*self.sim_steps_per_control_step)
+        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.timestep*self.sim_steps_per_control_step)
         self.state = self.ru.get_state().flatten()
         self.step_count = 0
         return self.state, {}
 
     def step(self, action):
         if self.curriculum:
-            #update kc
             self.set_curriculum()
-            #print(self.kc)
-        #frequency in range 0-1
-        freq = np.abs(action[12:]).tolist()
-        #joint angle increments in range -2 to 2 degrees
-        pos_update = action[0:12]
-        pos_update = [math.radians(deg*2) for deg in pos_update]
+
+        freq = np.abs(action[12:]).astype(np.float32)
+        pos_update = np.radians(action[0:12] * 2.0).astype(np.float32)
 
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
@@ -421,32 +419,22 @@ class Ruff_env(gym.Env):
 
         self.ru.move()
 
-        #push logic
         push_active = False
         if self.step_count > 150:
             sim_time = self.step_count * self.timestep * self.sim_steps_per_control_step
             push_active = (sim_time % 3.0) < 0.2
+
         if push_active:
-            force = random.choice([-1,1])*random.uniform(20,50)
-            offset = random.uniform(-self.base_length/2,self.base_length/2)
-        
-        #step simulation
-        for _ in range(self.sim_steps_per_control_step):
-            if push_active:
-                p.applyExternalForce(self.Id, -1, [0,force,0], [offset,0,0], p.LINK_FRAME)
-            p.stepSimulation()
+            force  = random.choice([-1, 1]) * random.uniform(20, 50)
+            offset = random.uniform(-self.base_length / 2, self.base_length / 2)
+            p.applyExternalForce(self.Id, -1, [0.0, force, 0.0], [offset, 0.0, 0.0], p.LINK_FRAME)
+
+        p.stepSimulation() 
 
         self.step_count+=1
-        if self.ru.is_end():
-            done = True
-            # print("doggo no:"+str(self.env_rank)+" fell")
-        else:
-            done = False
-        if self.step_count>2000:
-            truncated = True
-            # print("doggo no:"+sstr(self.env_rank)+"completed the episode")
-        else:
-            truncated = False
+        done = bool(self.ru.is_end())
+        truncated = self.step_count > 2000
+
         self.new_state = self.ru.get_state().flatten()
         reward,infos = self.ru.get_reward(self.kc)
         return self.new_state, reward, done, truncated, infos
