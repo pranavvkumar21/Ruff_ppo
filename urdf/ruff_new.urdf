@@ -13,13 +13,7 @@
   </gazebo>
   <!-- adding imu sensor to the base link -->
   <!--IMU : joint , link , sensor  -->
-  <link name="root_link">
-</link>
-  <joint name="root_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0"/>
-    <parent link="root_link"/>
-    <child link="base_link"/>
-  </joint>
+
   <link name="base_link">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 -0.02"/>
@@ -64,7 +58,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="FL1_" type="continuous">
+  <joint name="FL1_" type="revolute">
     <origin rpy="0 0 0" xyz="0.2498 0.1502 -0.0101"/>
     <parent link="base_link"/>
     <child link="FL1"/>
@@ -97,7 +91,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="FL2_" type="continuous">
+  <joint name="FL2_" type="revolute">
     <origin rpy="0 -0.7853981633974483 0" xyz="0.064 0.068 0.0"/>
     <parent link="FL1"/>
     <child link="FL2"/>
@@ -130,7 +124,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="FL3_" type="continuous">
+  <joint name="FL3_" type="revolute">
     <origin rpy="0 1.5707963267948966 0" xyz="-0.1805 0.029 -0.059"/>
     <parent link="FL2"/>
     <child link="FL3"/>
@@ -190,7 +184,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="FR1_" type="continuous">
+  <joint name="FR1_" type="revolute">
     <origin rpy="0 0 0" xyz="0.2498 -0.1502 -0.0101"/>
     <parent link="base_link"/>
     <child link="FR1"/>
@@ -223,7 +217,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="FR2_" type="continuous">
+  <joint name="FR2_" type="revolute">
     <origin rpy="0 -0.7853981633974483 0" xyz="0.064 -0.068 0.0"/>
     <parent link="FR1"/>
     <child link="FR2"/>
@@ -256,7 +250,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="FR3_" type="continuous">
+  <joint name="FR3_" type="revolute">
     <origin rpy="0 1.5707963267948966 0" xyz="-0.1805 -0.029 -0.059"/>
     <parent link="FR2"/>
     <child link="FR3"/>
@@ -316,7 +310,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RL1_" type="continuous">
+  <joint name="RL1_" type="revolute">
     <origin rpy="0 0 0" xyz="-0.2498 0.1502 -0.0101"/>
     <parent link="base_link"/>
     <child link="RL1"/>
@@ -349,7 +343,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RL2_" type="continuous">
+  <joint name="RL2_" type="revolute">
     <origin rpy="0 -0.7853981633974483 0" xyz="-0.064 0.068 0.0"/>
     <parent link="RL1"/>
     <child link="RL2"/>
@@ -382,7 +376,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RL3_" type="continuous">
+  <joint name="RL3_" type="revolute">
     <origin rpy="0 1.5707963267948966 0" xyz="-0.1805 0.029 -0.059"/>
     <parent link="RL2"/>
     <child link="RL3"/>
@@ -442,7 +436,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RR1_" type="continuous">
+  <joint name="RR1_" type="revolute">
     <origin rpy="0 0 0" xyz="-0.2498 -0.1502 -0.0101"/>
     <parent link="base_link"/>
     <child link="RR1"/>
@@ -475,7 +469,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RR2_" type="continuous">
+  <joint name="RR2_" type="revolute">
     <origin rpy="0 -0.7853981633974483 0" xyz="-0.064 -0.068 0.0"/>
     <parent link="RR1"/>
     <child link="RR2"/>
@@ -508,7 +502,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RR3_" type="continuous">
+  <joint name="RR3_" type="revolute">
     <origin rpy="0 1.5707963267948966 0" xyz="-0.1805 -0.029 -0.059"/>
     <parent link="RR2"/>
     <child link="RR3"/>

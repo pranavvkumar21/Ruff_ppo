@@ -2,12 +2,9 @@
 import logging
 import os
 import warnings
-import tensorflow as tf
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-tf.get_logger().setLevel(logging.ERROR)
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -26,8 +23,19 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.callbacks import CallbackList
+from stable_baselines3.common.utils import set_random_seed
 import torch
 import psutil
+
+# Set the seeds for reproducibility
+SEED = 42
+
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+
+
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -44,7 +52,7 @@ kc = {
     "forward": 1,
     "lateral": 1,
     "angular": 1,
-    "balance_twist": 0.1,
+    "balance_twist": 1,
     "rhythm": 0.01,
     "efficiency": 0.01,
 }
@@ -53,8 +61,8 @@ kd = {
     "lateral": 0.999_994,
     "angular": 0.999_994,
     "balance_twist": 0.999_994,
-    "rhythm": 0.999_994,
-    "efficiency": 0.999_994
+    "rhythm": 0.999_998,
+    "efficiency": 0.999_998,
 }
 LOAD = False
 testing_mode = False
@@ -80,7 +88,7 @@ if not os.path.exists(video_dir):
 prefix = 'ruu_ppo_model'
 if testing_mode:
     NUM_ENV = 1
-    render_type = "gui"
+    render_type = "DIRECT"
     LOAD = False
 else:
     NUM_ENV = 32
@@ -195,39 +203,6 @@ class CustomCheckpointCallback(CheckpointCallback):
 
         return result
 
-class VideoCheckpointCallback(BaseCallback):
-    def __init__(self, video_root, run_id,
-                 save_freq=50_000, video_len=5_000,
-                 name_prefix="ruu_ppo_model", verbose=0):
-        super().__init__(verbose)
-        self.save_freq, self.video_len = save_freq, video_len
-        self.video_dir = os.path.join(video_root, f"videos_{run_id}")
-        os.makedirs(self.video_dir, exist_ok=True)
-        self.name_prefix = name_prefix
-
-    def _on_step(self) -> bool:
-        if self.num_timesteps % self.save_freq == 0:
-            self._record_video()
-        return True
-
-    def _record_video(self):
-        import pybullet as p, os
-        from ruff_trainv2 import Ruff_env         # same file
-        path = os.path.join(self.video_dir,
-                            f"{self.name_prefix}_{self.num_timesteps}.mp4")
-
-        env = Ruff_env(render_type="DIRECT")
-        obs, _ = env.reset(commands=[[0.3, 0, 0]])
-        log = p.startStateLogging(p.STATE_LOGGING_VIDEO_MP4, path)
-
-        for _ in range(self.video_len):
-            act, _ = self.model.predict(obs, deterministic=True)
-            obs, _, d, t, _ = env.step(act)
-            if d or t:
-                obs, _ = env.reset(commands=[[0.3, 0, 0]])
-
-        p.stopStateLogging(log)
-        env.close()
 
 def load_checkpoint_data(json_path: str):
     try:
@@ -275,34 +250,73 @@ class Ruff_env(gym.Env):
     def __init__(self,rank=1, render_type="gui",command=[0.3,1e-9,1e-9],curriculum = False, kc=0,kd=1):
         super(Ruff_env, self).__init__()
 
-                # Define the action and observation space
         self.env_rank = rank
-        self.timestep = 1.0/2000.0
+        self.control_timestep = 1.0/100.0
         self.sim_steps_per_control_step = 20
         self.action_space = spaces.Box(low=-1, high=1, shape=(16,), dtype=np.float32)
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(60,), dtype=np.float64)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(60,), dtype=np.float32)
         self.command = command
+
         # Initialize PyBullet
         if render_type == "gui":
             self.physics_client = p.connect(p.GUI)
         else:
-            self.physics_client = p.connect(p.DIRECT)  # Use p.GUI for graphical version
-        p.setTimeStep(self.timestep)
+            self.physics_client = p.connect(p.DIRECT) 
+
+        #configure pybullet
+        # p.setTimeStep(self.control_timestep)
+        # p.setTimeStep(self.control_timestep/self.sim_steps_per_control_step)
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
         p.setRealTimeSimulation(0)
         p.setPhysicsEngineParameter(numSolverIterations=10, enableFileCaching=0)
+        p.setPhysicsEngineParameter(fixedTimeStep=self.control_timestep,
+            numSubSteps=self.sim_steps_per_control_step
+        )
         p.setGravity(0, 0, -10)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        planeId = p.loadURDF("plane.urdf")
-        p.changeDynamics(planeId, -1, lateralFriction=0.75)
-        self.Initial_position = [0,0.0,0.45]
-        self.Initial_orientation = p.getQuaternionFromEuler([0,0,math.pi/2])
-        self.Id = p.loadURDF("../urdf/ruff.urdf",self.Initial_position, self.Initial_orientation)
+        
+        frequency = random.uniform(0.0, 0.3)
+        amplitude = random.uniform(0.0, 0.1)
+        roughness = random.uniform(0.0, 0.05)
+        self.terrain = self.load_sinusoidal_heightfield(frequency=frequency, amplitude=amplitude, roughness=roughness, scale=0.2)
+        
+        #get spawn height
+        ground_height = self.get_ground_height()
+        spawn_z = ground_height + 0.45 
+        
+        #load ruff
+        self.Initial_position = [0,0.0,spawn_z]
+        self.Initial_orientation = p.getQuaternionFromEuler([0,0,0])
+        self.Id = p.loadURDF("../urdf/ruff_new.urdf",self.Initial_position, self.Initial_orientation)
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
-        self.ru = ruff(self.Id,self.command)
+        #!/usr/bin/env python3
+        
+        #change friction
+        p.changeDynamics(self.terrain, -1, lateralFriction=1.0)
+        for j in range(p.getNumJoints(self.Id)):
+            p.changeDynamics(self.Id, j, lateralFriction=1.0)
+        p.changeDynamics(self.Id, -1, lateralFriction=1.0)
+        for j in range(-1, p.getNumJoints(self.Id)):
+            dyn = p.getDynamicsInfo(self.Id, j)
+            mass = dyn[0]
+            inertia = dyn[2]
+            if mass <= 0:
+                print("Bad mass at link", j, ":", mass)
+            if any(v <= 0 for v in inertia[:3]):
+                print("Bad inertia at link", j, ":", inertia)
+
+
+        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.control_timestep)
+        p.setJointMotorControlArray(self.Id, self.ru.movable_joints, p.VELOCITY_CONTROL,
+                            targetVelocities=[0.0]*len(self.ru.movable_joints),
+                            forces=[0.0]*len(self.ru.movable_joints))
+
         print("created doggo with id: " +str(self.env_rank))
-        self.og_state = p.saveState()
+
         self.state = self.ru.get_state()
+
+        self.get_robot_base_length()
+
         self.step_count = 0
         self.curriculum = curriculum
         if self.curriculum:
@@ -317,68 +331,127 @@ class Ruff_env(gym.Env):
                 "rhythm": 1,
                 "efficiency": 1,
             }
+    def get_ground_height(self, x=0.0, y=0.0):
+        ray = p.rayTest([x, y, 10], [x, y, -10])
+        hit = ray[0]
+        if hit[0] != -1:   # hit something
+            return hit[3][2]  # z of hit
+        return 0.0
 
+    def load_sinusoidal_heightfield(self,
+                                    numRows=128,
+                                    numCols=128,
+                                    frequency=0.3,
+                                    amplitude=0.1,
+                                    roughness=0.05,
+                                    scale=0.2):
+
+        # remove old ground
+        for body in range(p.getNumBodies()):
+            name = p.getBodyInfo(body)[1].decode("utf-8")
+            if name in ["plane", "heightfield"]:
+                p.removeBody(body)
+
+        # grid
+        xs = np.linspace(0, 2 * np.pi, numCols)
+        ys = np.linspace(0, 2 * np.pi, numRows)
+        X, Y = np.meshgrid(xs, ys)
+
+        # base sinusoidal hills
+        Z = amplitude * np.sin(frequency * X) * np.cos(frequency * Y)
+
+        # add roughness
+        Z += np.random.uniform(low=-roughness,
+                            high=roughness,
+                            size=Z.shape)
+
+        heightfieldData = Z.flatten().astype(np.float32)
+
+        # create collision shape
+        terrainShape = p.createCollisionShape(
+            shapeType=p.GEOM_HEIGHTFIELD,
+            meshScale=[scale, scale, 1],
+            heightfieldTextureScaling=numRows/2,
+            heightfieldData=heightfieldData,
+            numHeightfieldRows=numRows,
+            numHeightfieldColumns=numCols
+        )
+        terrain = p.createMultiBody(0, terrainShape)
+
+        # reset ground
+        p.resetBasePositionAndOrientation(terrain, [0, 0, 0], [0, 0, 0, 1])
+
+        return terrain
 
     def set_curriculum(self):
         self.kc = {key: min(1.0, value ** self.kd[key]) for key, value in self.kc.items()}
 
+    def get_robot_base_length(self):
+        aabb_min, aabb_max = p.getAABB(self.Id, -1)
+        self.base_length = aabb_max[0] - aabb_min[0]
+
     def reset(self, seed=None, options=None,commands=None):
         # Reset the state of the environment to an initial state
         super().reset(seed=seed)
-        if seed is not None:
-            np.random.seed(seed)
-        p.restoreState(stateId=self.og_state)
         
-        # commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
+
+        p.resetBasePositionAndOrientation(self.Id,
+                                    self.Initial_position,
+                                    self.Initial_orientation)
+        p.resetBaseVelocity(self.Id, [0,0,0], [0,0,0])
+        for j in self.ru.movable_joints:                # revolute
+            p.resetJointState(self.Id, j, targetValue=0.0, targetVelocity=0.0)
+        p.setJointMotorControlArray(self.Id, self.ru.movable_joints, p.VELOCITY_CONTROL,
+                            targetVelocities=[0.0]*len(self.ru.movable_joints),
+                            forces=[0.0]*len(self.ru.movable_joints))
+
         if commands==None:
-        #   commands = [[random.uniform(0.3,2),random.uniform(-1,1),random.uniform(-1,1)]]
-        #   commands = [[random.uniform(0.3,2),1e-9,1e-9],[random.uniform(0.3,2),random.uniform(-1,1),1e-9],[random.uniform(0.3,2),1e-9,random.uniform(-1,1)]]
             fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
             lat = round(random.uniform(-1.0, 1.0), 1)  # e.g. -1.0, -0.9 … 1.0
             yaw = round(random.uniform(-1.0, 1.0), 1)  # same for angular
             # choose among forward only, forward+lateral, forward+yaw
             commands = [
                 [fwd, 0.0, 0.0],
-                [fwd, lat, 0.0],
-                [fwd, 0.0, yaw],
+                [fwd, lat*self.kc["efficiency"], 0.0],
+                [fwd, 0.0, yaw*self.kc["efficiency"]],    
             ]
         self.command = random.choice(commands)
-        self.ru = ruff(self.Id,self.command)
+        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.control_timestep)
         self.state = self.ru.get_state().flatten()
-        # print("resetting.. doggo no: "+str(self.env_rank))
-        # print("new command: "+ str(self.command)+"\n\n")
-        # print("kc updated to: "+str(self.kc))
         self.step_count = 0
         return self.state, {}
 
     def step(self, action):
         if self.curriculum:
-            #update kc
             self.set_curriculum()
-            #print(self.kc)
-        freq = np.abs(action[12:]).tolist()
-        pos_update = action[0:12]
-        pos_update = [math.radians(deg*6) for deg in pos_update]
+
+        freq = np.abs(action[12:]).astype(np.float32)
+        pos_update = np.radians(action[0:12] * 6.0).astype(np.float32)
+
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
         self.ru.update_policy(action)
-        tp = self.ru.update_target_pos(pos_update)
-        #print(tp)
+        self.ru.update_target_pos(pos_update)
+
         self.ru.move()
-        for _ in range(self.sim_steps_per_control_step):
-            p.stepSimulation()
-        #print("moved")
+
+        push_active = False
+        if self.step_count > 150:
+            sim_time = self.step_count * self.control_timestep
+            push_active = (sim_time % 3.0) < 0.2
+
+        if push_active:
+            force  = random.choice([-1, 1]) * random.uniform(20, 50)
+            offset = random.uniform(-self.base_length / 2, self.base_length / 2)
+            p.applyExternalForce(self.Id, -1, [0.0, force, 0.0], [offset, 0.0, 0.0], p.LINK_FRAME)
+
+
+        p.stepSimulation()
+
         self.step_count+=1
-        if self.ru.is_end():
-            done = True
-            # print("doggo no:"+str(self.env_rank)+" fell")
-        else:
-            done = False
-        if self.step_count>2000:
-            truncated = True
-            # print("doggo no:"+sstr(self.env_rank)+"completed the episode")
-        else:
-            truncated = False
+        done = bool(self.ru.is_end())
+        truncated = self.step_count > 2000
+
         self.new_state = self.ru.get_state().flatten()
         reward,infos = self.ru.get_reward(self.kc)
         return self.new_state, reward, done, truncated, infos
@@ -393,22 +466,23 @@ class Ruff_env(gym.Env):
 
 
 
-# Train PPO Model
-
+# Make environment function for SubprocVecEnv
 def make_env(rank, seed=0, render_type="direct"):
     def _init():
-        #print(render_type)
-        #print(rank)
         pr = psutil.Process()
         try:
             pr.cpu_affinity([rank % os.cpu_count()])
         except Exception:
             pass
         env = Ruff_env(rank, render_type,curriculum=True,kc = kc, kd=kd)
-        #env.seed(seed + rank)
+        env.reset(seed=SEED + rank) 
+        #seed action space and observation space
+        env.action_space.seed(SEED + rank)
+        env.observation_space.seed(SEED + rank)
         return env
     return _init
-
+# set SB3 rollout seed
+set_random_seed(SEED)
 
 if __name__ == "__main__":
     print("--"*50)
@@ -416,6 +490,8 @@ if __name__ == "__main__":
     print(f"testing mode: {testing_mode}")
     print(f"load set to: {LOAD}")
     print(f"number of env: {NUM_ENV}")
+    print(f"render type: {render_type}")
+    print(f"seed: {SEED}")
     print("\n\n")
 
     if not LOAD:
@@ -439,15 +515,10 @@ if __name__ == "__main__":
         custom_checkpoint_callback = CustomCheckpointCallback(save_freq=checkpoint,
                                                               save_path=save_model_path,
                                                               name_prefix=prefix )
-        video_cb = VideoCheckpointCallback(
-            video_root="../videos",
-            run_id=formatted_time,
-            save_freq=checkpoint,
-            name_prefix=prefix)
         callback = CallbackList([custom_checkpoint_callback,
                                  TensorboardCallback(),
                                  CurriculumCallback(),
-                                 video_cb])
+                                 ])
         print("created new save path")
 
         if LOAD:
@@ -465,9 +536,9 @@ if __name__ == "__main__":
         clip_range=0.2,
         gamma=0.992,
         ent_coef=0.0025,
-        target_kl=0.015,
         verbose=1,
-        policy_kwargs=dict(net_arch=[256, 256]),  # Adjust the policy architecture if needed
+        use_sde=False,
+        policy_kwargs=dict(net_arch=[256, 256], log_std_init=0.0, full_std=True),  # Adjust the policy architecture if needed
         tensorboard_log="../logs/ppo_pybullet_tensorboard/"
     )
     try:
@@ -492,16 +563,27 @@ if __name__ == "__main__":
     else:
         obs, info = env.reset()
         count = 0
+        #initialise emptyy rewards dict
+        rewards_dict = {}
         for i in range(10000):
 
             action, _states = model.predict(obs, deterministic=True)
             obs, rewards, done, trunc, info = env.step(action)
-            kc = kc**kd
-
+            #sum rewards to rewards dict
+            for key, value in info['rewards'].items():
+                if key not in rewards_dict:
+                    rewards_dict[key] = 0
+                rewards_dict[key] += value
+            
+            count += 1
             if done or trunc:
                 env.reset()
-                count+=1
+                #divide each reward by count
+                for key in rewards_dict.keys():
+                    rewards_dict[key] = rewards_dict[key]/count
                 print("episode "+str(count)+ " has been completed")
+                print("rewards so far: "+str(rewards_dict))
+                rewards_dict = {}
+                count = 0
         # Check if the environment follows the Gym API
         #check_env(env)
-

@@ -10,10 +10,10 @@ from ruff_trainv2 import Ruff_env
 
 MODELS_ROOT = os.path.join("..", "models")
 OUTPUT_DIR  = os.path.join("..", "outputs")
-VIDEO_STEPS = 2000
+VIDEO_STEPS = 1000
 FPS, W, H   = 30, 640, 480
 FORWARD_CMD = [[0.3, 0.0, 0.0]]
-USE_GUI     = True  # set False to render headless
+USE_GUI     = False  # set False to render headless
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -58,7 +58,7 @@ def record_video(model_path, use_gui=USE_GUI, output_dir=OUTPUT_DIR):
     for _ in range(10):
         p.stepSimulation()
 
-    steps_per_sec = int(1.0 / env.timestep / env.sim_steps_per_control_step)  # ≈100
+    steps_per_sec = int(1.0 / env.control_timestep / env.sim_steps_per_control_step)  # ≈100
     stride = max(1, steps_per_sec // FPS)                                     # ≈3
 
     for t in tqdm(range(VIDEO_STEPS), desc=f"recording {base}"):
@@ -74,7 +74,15 @@ def record_video(model_path, use_gui=USE_GUI, output_dir=OUTPUT_DIR):
                 W, H, view, proj,
                 renderer=p.ER_BULLET_HARDWARE_OPENGL if use_gui else p.ER_TINY_RENDERER
             )
-            frame = np.reshape(rgba, (H, W, 4))[:, :, :3]
+            
+            arr = np.asarray(rgba)
+            if arr.dtype.kind == "f":
+                arr = (arr * 255.0).clip(0,255).astype(np.uint8)
+            else:
+                arr = arr.astype(np.uint8)
+
+            frame = arr.reshape(H, W, 4)[..., :3]
+            frame = np.ascontiguousarray(frame)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             writer.write(frame)
 
@@ -96,7 +104,8 @@ def main():
     completed_checkpoints = []
     while True:
         try:
-            for ck in list_checkpoints(run_dir):
+            # print(list_checkpoints(run_dir)[])
+            for ck in list_checkpoints(run_dir)[-3:]:
                 if ck not in completed_checkpoints:
                     record_video(ck, use_gui=USE_GUI, output_dir=output_dir)
                     completed_checkpoints.append(ck)
