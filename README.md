@@ -9,6 +9,23 @@ The project uses a rhythm generator (RG) network to adjust the timing of phase t
 
 From an engineering perspective, the code encourages the robot to lift the corresponding foot high when the leg is in the swing phase or hold the corresponding foot firmly to the ground when the leg is in the stance phase. The cycle of the leg phases ensures the emergence of the animal-like rhythmic locomotion behaviors. With the proposed control architecture, we can focus on the main tasks of legged robots, such as forward movement and steering movement, etc.
 
+# Checklist of Things to do
+
+- [x]   Fix Reset spawn
+- [x]   setup stable baselines3
+- [x]   Fix target_pos action and set max torque limits
+- [x]   Create Curriculum 
+- [x]   Set up foot slip, stance, clear and zvel rewards
+- [ ]   Setup joint vel, torque and policy smooth penalty
+- [ ]   Setup RG_freq and RG_phase rewards
+- [ ]   Create rewards config.yaml for controlling reward parameters and weights
+- [ ]   Move pybullet code into legacy-v2 restructure the repo
+- [ ]   Add random push to the robot
+- [ ]   Set terrain difficulty curriculum
+- [ ]   Add domain randomization
+- [ ]   Try using State dependant exploration and squashing outputs instead of clipping
+
+
 ## References
 
 Sheng, Jiapeng, et al. "Bio-Inspired Rhythmic Locomotion for Quadruped Robots." IEEE Robotics and Automation Letters 7.3 (2022): 6782-6789.
