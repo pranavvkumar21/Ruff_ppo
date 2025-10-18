@@ -65,7 +65,7 @@ kd = {
     "efficiency": 0.999_998,
 }
 LOAD = False
-testing_mode = True
+testing_mode = False
 checkpoint = 50_000
 
 now = datetime.now()
@@ -88,7 +88,7 @@ if not os.path.exists(video_dir):
 prefix = 'ruu_ppo_model'
 if testing_mode:
     NUM_ENV = 1
-    render_type = "gui"
+    render_type = "DIRECT"
     LOAD = False
 else:
     NUM_ENV = 32
@@ -251,7 +251,7 @@ class Ruff_env(gym.Env):
         super(Ruff_env, self).__init__()
 
         self.env_rank = rank
-        self.timestep = 1.0/2000.0
+        self.control_timestep = 1.0/100.0
         self.sim_steps_per_control_step = 20
         self.action_space = spaces.Box(low=-1, high=1, shape=(16,), dtype=np.float32)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(60,), dtype=np.float32)
@@ -264,12 +264,12 @@ class Ruff_env(gym.Env):
             self.physics_client = p.connect(p.DIRECT) 
 
         #configure pybullet
-        # p.setTimeStep(self.timestep)
+        # p.setTimeStep(self.control_timestep)
+        # p.setTimeStep(self.control_timestep/self.sim_steps_per_control_step)
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
         p.setRealTimeSimulation(0)
         p.setPhysicsEngineParameter(numSolverIterations=10, enableFileCaching=0)
-        p.setPhysicsEngineParameter(
-            fixedTimeStep=self.sim_steps_per_control_step,
+        p.setPhysicsEngineParameter(fixedTimeStep=self.control_timestep,
             numSubSteps=self.sim_steps_per_control_step
         )
         p.setGravity(0, 0, -10)
@@ -289,14 +289,28 @@ class Ruff_env(gym.Env):
         self.Initial_orientation = p.getQuaternionFromEuler([0,0,0])
         self.Id = p.loadURDF("../urdf/ruff_new.urdf",self.Initial_position, self.Initial_orientation)
         p.resetBasePositionAndOrientation(self.Id, self.Initial_position,  self.Initial_orientation)
-
+        #!/usr/bin/env python3
+        
         #change friction
         p.changeDynamics(self.terrain, -1, lateralFriction=1.0)
         for j in range(p.getNumJoints(self.Id)):
             p.changeDynamics(self.Id, j, lateralFriction=1.0)
         p.changeDynamics(self.Id, -1, lateralFriction=1.0)
+        for j in range(-1, p.getNumJoints(self.Id)):
+            dyn = p.getDynamicsInfo(self.Id, j)
+            mass = dyn[0]
+            inertia = dyn[2]
+            if mass <= 0:
+                print("Bad mass at link", j, ":", mass)
+            if any(v <= 0 for v in inertia[:3]):
+                print("Bad inertia at link", j, ":", inertia)
 
-        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.timestep*self.sim_steps_per_control_step)
+
+        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.control_timestep)
+        p.setJointMotorControlArray(self.Id, self.ru.movable_joints, p.VELOCITY_CONTROL,
+                            targetVelocities=[0.0]*len(self.ru.movable_joints),
+                            forces=[0.0]*len(self.ru.movable_joints))
+
         print("created doggo with id: " +str(self.env_rank))
 
         self.state = self.ru.get_state()
@@ -387,7 +401,9 @@ class Ruff_env(gym.Env):
         p.resetBaseVelocity(self.Id, [0,0,0], [0,0,0])
         for j in self.ru.movable_joints:                # revolute
             p.resetJointState(self.Id, j, targetValue=0.0, targetVelocity=0.0)
-        
+        p.setJointMotorControlArray(self.Id, self.ru.movable_joints, p.VELOCITY_CONTROL,
+                            targetVelocities=[0.0]*len(self.ru.movable_joints),
+                            forces=[0.0]*len(self.ru.movable_joints))
 
         if commands==None:
             fwd = round(random.uniform(0.3, 2.0), 1)   # e.g. 0.3, 0.4 … 2.0
@@ -396,11 +412,11 @@ class Ruff_env(gym.Env):
             # choose among forward only, forward+lateral, forward+yaw
             commands = [
                 [fwd, 0.0, 0.0],
-                [fwd, lat, 0.0],
-                [fwd, 0.0, yaw],    
+                [fwd, lat*self.kc["efficiency"], 0.0],
+                [fwd, 0.0, yaw*self.kc["efficiency"]],    
             ]
         self.command = random.choice(commands)
-        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.timestep*self.sim_steps_per_control_step)
+        self.ru = ruff(self.Id,terrain_id=self.terrain, command=self.command,timestep=self.control_timestep)
         self.state = self.ru.get_state().flatten()
         self.step_count = 0
         return self.state, {}
@@ -410,7 +426,7 @@ class Ruff_env(gym.Env):
             self.set_curriculum()
 
         freq = np.abs(action[12:]).astype(np.float32)
-        pos_update = np.radians(action[0:12] * 2.0).astype(np.float32)
+        pos_update = np.radians(action[0:12] * 6.0).astype(np.float32)
 
         self.ru.set_frequency(freq)
         self.ru.phase_modulator()
@@ -421,7 +437,7 @@ class Ruff_env(gym.Env):
 
         push_active = False
         if self.step_count > 150:
-            sim_time = self.step_count * self.timestep * self.sim_steps_per_control_step
+            sim_time = self.step_count * self.control_timestep
             push_active = (sim_time % 3.0) < 0.2
 
         if push_active:
@@ -429,7 +445,8 @@ class Ruff_env(gym.Env):
             offset = random.uniform(-self.base_length / 2, self.base_length / 2)
             p.applyExternalForce(self.Id, -1, [0.0, force, 0.0], [offset, 0.0, 0.0], p.LINK_FRAME)
 
-        p.stepSimulation() 
+
+        p.stepSimulation()
 
         self.step_count+=1
         done = bool(self.ru.is_end())
@@ -570,4 +587,3 @@ if __name__ == "__main__":
                 count = 0
         # Check if the environment follows the Gym API
         #check_env(env)
-
