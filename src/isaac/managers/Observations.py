@@ -5,14 +5,14 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import  (ObservationGroupCfg as ObsGroup,
     ObservationTermCfg as ObsTerm,
     SceneEntityCfg)
+import yaml
 
 import torch
+with open("../../config/ruff_config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
-joint_names = [
-            "FL1_", "FR1_", "RL1_", "RR1_",
-            "FL2_", "FR2_", "RL2_", "RR2_",
-            "FL3_", "FR3_", "RL3_", "RR3_",
-        ]
+joint_names = config["scene"]["joint_names"]
+
 
 
 def phase_obs(env, key="phase", use_trig=True):
@@ -28,13 +28,11 @@ def freq_obs(env, key="frequency"):
         env.cmd = {}
         return torch.zeros((env.scene.num_envs, 4), device=env.device)
     return env.cmd[key]
-def target_obs(env, key="target"):
-    joints = env.scene["ruff"].data.joint_pos
-    if not hasattr(env, "cmd") or key not in env.cmd:
-        print("Warning: target not initialized yet!")
-        env.cmd = {}
-        return torch.zeros_like(joints)
-    return env.cmd[key] - joints
+def target_obs(env):
+    joint_ids = [env.scene["ruff"].data.joint_names.index(name) for name in joint_names]
+    joints = env.scene["ruff"].data.joint_pos[:,joint_ids]
+    target = env.scene["ruff"].data.joint_pos_target[:,joint_ids]
+    return (target - joints)
 
 @configclass
 class ObservationsCfg:
