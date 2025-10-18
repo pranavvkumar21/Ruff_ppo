@@ -22,8 +22,10 @@ def reset_cmd(env, env_ids):
     env.cmd["phase"][env_ids]  = 0.0
     env.cmd["frequency"][env_ids]   = 0.0
     # print("resetting env ids", env_ids, "pos:", pos[env_ids, :])
+def prestartup(env, env_ids):
+    env.extras["rewards"] = {}
 @configclass
 class EventsCfg:
     startup_cmd = EventTerm(func=init_cmd, mode="startup", params={"n_phase": 4})
     reset_cmd = EventTerm(func=reset_cmd, mode="reset", params={})
-
+    # pre_startup = EventTerm(func=prestartup, mode="prestartup", params={})

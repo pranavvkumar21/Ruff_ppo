@@ -11,17 +11,12 @@ from isaaclab.terrains import HfRandomUniformTerrainCfg, HfDiscreteObstaclesTerr
 from isaaclab.terrains import HfPyramidStairsTerrainCfg, HfWaveTerrainCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from math import ceil, sqrt
-
-import json
-#load config
-with open("../../config/config.json", "r") as f:
-    config = json.load(f)
-N = config["num_envs"]
-cols = ceil(sqrt(N))
-rows = ceil(N / cols)
-rows = 10
-cols = 10
-size = (config["env_spacing"], config["env_spacing"])
+import yaml
+with open("../../config/ruff_config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+rows = config["scene"]["rows"]
+cols = config["scene"]["cols"]
+size = (config["scene"]["env_spacing"], config["scene"]["env_spacing"])
 
 terrain_gen = TerrainGeneratorCfg(
     size=size,
@@ -57,6 +52,7 @@ terrain_gen = TerrainGeneratorCfg(
 )
 
 class RuffSceneCfg(InteractiveSceneCfg):
+    replicate_physics = False
     ruff = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/ruff",
         spawn=sim_utils.UsdFileCfg(usd_path="../../urdf/ruff_usd/ruff.usd", activate_contact_sensors=True),
@@ -67,7 +63,6 @@ class RuffSceneCfg(InteractiveSceneCfg):
     terrain_importer = TerrainImporterCfg(
     prim_path="/World/terrain",
     terrain_type="generator",
-    num_envs=config["num_envs"],
     terrain_generator=terrain_gen,
 
     )

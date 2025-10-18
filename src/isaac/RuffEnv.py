@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # run_env.py
 
+if __name__ == "__main__":
+    from isaaclab.app import AppLauncher
+    simulation_app = AppLauncher(headless=True, livestream=2).app
 
 import json
 #load config
@@ -28,11 +31,12 @@ from managers.Events import EventsCfg
 from managers.Commands import CommandsCfg
 from managers.Rewards import RewardsCfg
 from managers.Terminations import TerminationsCfg
+from managers.Curriculum import CurriculumCfg
 
 
 @configclass
 class RuffEnvCfg(ManagerBasedRLEnvCfg):
-    scene = RuffSceneCfg(num_envs=config["num_envs"], env_spacing=config["env_spacing"])
+    scene = RuffSceneCfg(num_envs=4, env_spacing=5)
     actions = ActionsCfg()
     events = EventsCfg()
 
@@ -40,6 +44,8 @@ class RuffEnvCfg(ManagerBasedRLEnvCfg):
     commands = CommandsCfg()
     rewards = RewardsCfg()
     terminations = TerminationsCfg()
+
+    curriculum = CurriculumCfg()
 
     def __post_init__(self):
         
@@ -63,20 +69,14 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     t0 = time.perf_counter()
-
-    for _ in range(n_steps):
+    offset = 0.007  # height offset from ray hit to foot bottom
+    for step in range(n_steps):
         with torch.inference_mode():
-            env.step(torch.randn_like(env.action_manager.action))
-            # env.step(torch.zeros_like(env.action_manager.action))
-            # data = env.scene.sensors["foot_height"].data
-            # F = data.net_forces_w          # [env, feet, 3]
-            # in_contact = (F.norm(dim=-1) > 1.0).any(dim=-1)
-            fl3_height = mdp.height_scan(env,SceneEntityCfg("fl3_height"),offset=0.007)[0]
-            fr3_height = mdp.height_scan(env,SceneEntityCfg("fr3_height"),offset=0.007)[0]
-            rl3_height = mdp.height_scan(env,SceneEntityCfg("rl3_height"),offset=0.007)[0]
-            rr3_height = mdp.height_scan(env,SceneEntityCfg("rr3_height"),offset=0.007)[0]
-            # print(fl3_height, fr3_height, rl3_height, rr3_height)
-            # print(in_contact.shape)
+            # env.step(torch.randn_like(env.action_manager.action))
+            env.step(torch.zeros_like(env.action_manager.action))
+            # print(env.scene["ruff"].data.body_names)
+            print(step)
+
 
 
     if torch.cuda.is_available():
