@@ -15,22 +15,6 @@ import warnings
 # Suppress specific warning
 warnings.filterwarnings("ignore", category=UserWarning, message="A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy")
 
-
-NUM_EPISODES = 100_000
-STEPS_PER_EPISODE = 3_000
-timestep = 1.0/100.0
-num_inputs = (60,)
-gamma= 0.992
-lmbda = 0.95
-critic_discount = 0.5
-clip_range = 0.2
-entropy = 0.0025
-curDT = datetime.now()
-filename = "ruff_logfile"
-reward_log = 'reward_logfile.csv'
-discounted_sum = 0
-epsilon_min = 0.01
-
 import os
 urdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"urdf")
 #print(os.listdir(os.path.dirname(os.path.abspath(__file__))))
@@ -38,7 +22,7 @@ urdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 
 class ruff:
-    def __init__(self, id, terrain_id, command,timestep=timestep):
+    def __init__(self, id, terrain_id, command,timestep=1/100):
         self.id = id
         self.terrain_id = terrain_id
         self.command = command
@@ -60,6 +44,7 @@ class ruff:
         # movable joints
         self.movable_joints = [i for i in range(self.num_joints)
                        if p.getJointInfo(self.id, i)[2] == p.JOINT_REVOLUTE]
+        self.num_movable_joints = len(self.movable_joints)
         # print("length of movable joints:", len(self.movable_joints))
         self.n_joints = [i for i in range(self.num_joints)]
         self.joint_lower_limits = np.asarray([p.getJointInfo(self.id,i)[8] for i in self.movable_joints], np.float32)
@@ -113,9 +98,9 @@ class ruff:
         self.foot_xvel = vel[:, 0]
         self.foot_yvel = vel[:, 1]
         self.foot_zvel = vel[:, 2]
-        print("foot xvel:", self.foot_xvel)
-        print("foot yvel:", self.foot_yvel)
-        print("foot zvel:", self.foot_zvel)
+        # print("foot xvel:", self.foot_xvel)
+        # print("foot yvel:", self.foot_yvel)
+        # print("foot zvel:", self.foot_zvel)
 
     def get_state(self):
         self.getvelocity()
@@ -199,7 +184,7 @@ class ruff:
             jointIndices=self.movable_joints,
             controlMode=p.POSITION_CONTROL,
             targetPositions=self.target_pos.tolist(),
-            forces=[max_force] * len(self.movable_joints)
+            forces=[max_force] * self.num_movable_joints
         )
                 
     def set_frequency(self,freq):
