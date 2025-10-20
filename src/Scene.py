@@ -12,8 +12,12 @@ from isaaclab.terrains import HfPyramidStairsTerrainCfg, HfWaveTerrainCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from math import ceil, sqrt
 import yaml
-with open("../../config/ruff_config.yaml", "r") as f:
+from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent
+
+with open(ROOT / "config" / "ruff_config.yaml", "r") as f:
     config = yaml.safe_load(f)
+
 rows = config["scene"]["rows"]
 cols = config["scene"]["cols"]
 size = (config["scene"]["env_spacing"], config["scene"]["env_spacing"])
@@ -55,7 +59,7 @@ class RuffSceneCfg(InteractiveSceneCfg):
     replicate_physics = False
     ruff = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/ruff",
-        spawn=sim_utils.UsdFileCfg(usd_path="../../urdf/ruff_usd/ruff.usd", activate_contact_sensors=True),
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{ROOT}/urdf/ruff_usd/ruff.usd", activate_contact_sensors=True),
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 0.45)),
         actuators={"joint-acts": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=50, stiffness=1500,effort_limit=18)},
     )
@@ -70,23 +74,49 @@ class RuffSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
     )
-
-    foot_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/ruff/.*3",
+    #define leg contact sensors
+    fl_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/ruff/FL3",
         update_period=0.0,
         history_length=1,
         filter_prim_paths_expr=["/World/terrain"],
-        force_threshold=1.0,          # optional builtin thresholding
+        force_threshold=1.0,          
         debug_vis=False,
     )
+    fr_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/ruff/FR3",
+        update_period=0.0,
+        history_length=1,
+        filter_prim_paths_expr=["/World/terrain"],
+        force_threshold=1.0,         
+        debug_vis=False,
+    )
+    rl_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/ruff/RL3",
+        update_period=0.0,
+        history_length=1,
+        filter_prim_paths_expr=["/World/terrain"],
+        force_threshold=1.0,          
+        debug_vis=False,
+    )
+    rr_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/ruff/RR3",
+        update_period=0.0,
+        history_length=1,
+        filter_prim_paths_expr=["/World/terrain"],
+        force_threshold=1.0,      
+        debug_vis=False,
+    )
+    #define body contact sensor group
     body_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/ruff/(base_link|FL1|FR1|RL1|RR1|FL2|FR2|RL2|RR2)$",
         update_period=0.0,
         history_length=1,
         filter_prim_paths_expr=["/World/terrain"],
-        force_threshold=1.0,          # optional builtin thresholding
+        force_threshold=1.0,      
         debug_vis=False,
     )
+    #define foot height raycasters
     fl3_height = RayCasterCfg(
         mesh_prim_paths=["/World/terrain"],
         prim_path="{ENV_REGEX_NS}/ruff/FL3_f",

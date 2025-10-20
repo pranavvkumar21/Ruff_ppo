@@ -3,7 +3,6 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.utils import configclass
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import SceneEntityCfg
-
 import torch
 
 def init_cmd(env, env_ids, n_phase=4):

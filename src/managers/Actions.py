@@ -8,8 +8,12 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.modifiers import clip as il_clip
 import isaaclab.envs.mdp as mdp
+from pathlib import Path
 import yaml
-with open("../../config/ruff_config.yaml", "r") as f:
+import os
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+with open(ROOT / "config" / "ruff_config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 N_PHASE = 4
@@ -51,7 +55,8 @@ class PhaseAction(ActionTerm):
     def apply_actions(self) -> None:
         # self.env.cmd["target"] = self._proc[:, :N_JOINTS] + self.env.scene[self.asset_name].data.joint_pos[:, self.joint_ids]
         self.env.cmd["frequency"] = self._proc
-        self.env.cmd["phase"] += (2.0 * torch.pi * self.env.cmd["frequency"] * self.env.step_dt) % (2.0 * torch.pi)
+        delta = 2.0 * torch.pi * self.env.cmd["frequency"] * self.env.step_dt
+        self.env.cmd["phase"] = torch.remainder(self.env.cmd["phase"] + delta, 2.0 * torch.pi)
         # self.env.scene[self.asset_name].set_joint_position_target(self.env.cmd["target"],joint_ids=self.joint_ids)
 
 

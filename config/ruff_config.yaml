@@ -1,0 +1,46 @@
+scene:
+  env_spacing: 30
+  rows: 2
+  cols: 2
+  joint_names:
+    - FL1_
+    - FL2_
+    - FL3_
+    - FR1_
+    - FR2_
+    - FR3_
+    - RL1_
+    - RL2_
+    - RL3_
+    - RR1_
+    - RR2_
+    - RR3_
+env_config:
+  sim_dt: 0.001
+  decimation: 10
+  max_episode_length: 1000
+  episode_length_s: 10
+  seed: 42
+
+train:
+  num_envs: 8192
+  num_iterations: 300
+  rows: 10
+  cols: 10
+  total_timesteps: 98e6
+  n_steps: 128
+  batch_size: 65_536
+  learning_rate: 1.0e-4
+  clip_range: 0.2
+  gamma: 0.992
+  ent_coef: 0.0025
+  n_epochs: 10
+  target_kl: 0.015
+eval:
+  num_envs: 4
+  rows: 4
+  cols: 4
+
+save_config:
+  save_path: ../../models/isaac_models/
+  save_prefix: ruu_ppo_model

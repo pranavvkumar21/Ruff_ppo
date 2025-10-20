@@ -4,7 +4,10 @@ from isaaclab.utils import configclass
 from isaaclab.envs import mdp
 import torch
 import yaml
-with open("../../config/ruff_config.yaml", "r") as f:
+import os
+from pathlib import Path
+ROOT = Path(__file__).resolve().parent.parent.parent
+with open(ROOT / "config" / "ruff_config.yaml", "r") as f:
     config = yaml.safe_load(f)
 joint_names = config["scene"]["joint_names"]
 
