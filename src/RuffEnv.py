@@ -5,12 +5,6 @@ if __name__ == "__main__":
     from isaaclab.app import AppLauncher
     simulation_app = AppLauncher(headless=True, livestream=2).app
 
-import json
-#load config
-with open("../../config/config.json", "r") as f:
-    config = json.load(f)
-# simulation_app = AppLauncher(headless=False, livestream=2).app
-
 import torch
 import time
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg, ManagerBasedRLEnv
@@ -70,13 +64,24 @@ def main():
         torch.cuda.synchronize()
     t0 = time.perf_counter()
     offset = 0.007  # height offset from ray hit to foot bottom
+    feet = ["fl_contact", "fr_contact", "rl_contact", "rr_contact"]
     for step in range(n_steps):
+        contacts = []
         with torch.inference_mode():
             # env.step(torch.randn_like(env.action_manager.action))
-            env.step(torch.zeros_like(env.action_manager.action))
-            # print(env.scene["ruff"].data.body_names)
+            obs, rewards, dones, trunc, info = env.step(torch.zeros_like(env.action_manager.action))
+            for f in feet:
+                    data = env.scene.sensors[f].data
+                    # IsaacLab ContactSensorData fields:
+                    #   net_forces_w: [num_envs, 3]
+                    #   net_moments_w: [num_envs, 3]
+                    #   num_prim_contacts: [num_envs]
+                    #   force_matrix_w: [num_envs, N, 3]
+                    print(f"net forces shape: {data.net_forces_w.shape}")
+                    forces = torch.linalg.norm(data.net_forces_w, dim=-1).squeeze(-1)  # [num_envs]
+                    contacts.append(forces > 1.0) 
             print(step)
-
+            print(torch.stack(contacts, dim=1).float().shape)
 
 
     if torch.cuda.is_available():

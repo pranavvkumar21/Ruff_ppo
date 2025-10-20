@@ -30,12 +30,13 @@ class RewardCurriculum(ManagerTermBase):
         num_steps: int,
     ) -> float:
         # update term settings
-        for term_name in term_names:
-            weight = ((self._weight[term_name]) * (env.common_step_counter / num_steps))
-            self._term_cfg[term_name].weight = weight
-            env.reward_manager.set_term_cfg(term_name, self._term_cfg[term_name])
+        if env.common_step_counter <= num_steps:
+            for term_name in term_names:
+                weight = ((self._weight[term_name]) * (env.common_step_counter / num_steps))
+                self._term_cfg[term_name].weight = weight
+                env.reward_manager.set_term_cfg(term_name, self._term_cfg[term_name])
             if env.common_step_counter % 100 == 0:
-                print(f"Updated curriculum for term '{term_name}' to weight {weight}")
+                print(f"curriculum percentage applied: {env.common_step_counter/num_steps*100:.2f}%")
         return None
 
 # def rhythm_curriculum(env, env_ids, term_name, start=0.0, end=1, steps=1000):
@@ -50,5 +51,5 @@ class RewardCurriculum(ManagerTermBase):
 class CurriculumCfg:
     reward_curriculum = CurrTerm(
         func=RewardCurriculum,
-        params={"term_names": ["twist", "foot_rhythm", "joint_limits"], "num_steps": 5000},
+        params={"term_names": ["twist", "foot_rhythm", "joint_limits","rg_phase"], "num_steps": 8000},
     )

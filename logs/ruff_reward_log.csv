@@ -1,1 +1,0 @@
-forward_velocity,lateral_velocity,angular_velocity,Balance,foot_stance,foot_clear,foot_zvel,frequency_err,phase_err,joint_constraints,foot_slip,policy_smooth,twist
