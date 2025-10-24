@@ -1,6 +1,6 @@
 forward_velocity:
   slope: -3.0
-  weight: 3.0
+  weight: 2.0
 lateral_velocity:
   slope: -3.0
   weight: 2.0
@@ -10,7 +10,7 @@ angular_velocity:
 balance:
   vz_slope: -2.5
   wxy_slope: -2.0
-  weight: 1.0
+  weight: 1.3
 twist:
   weight: -0.6
 foot_rhythm:
@@ -22,3 +22,8 @@ joint_constraints:
   weight: -0.8
 rg_phase:
   weight: 1.0
+joint_penalty:
+  torque_weight: -0.0012
+  velocity_weight: -0.0008
+policy_smoothness:
+  weight: -0.016

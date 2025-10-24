@@ -1,7 +1,7 @@
 scene:
   env_spacing: 30
-  rows: 2
-  cols: 2
+  rows: 1
+  cols: 1
   joint_names:
     - FL1_
     - FL2_
@@ -24,22 +24,25 @@ env_config:
 
 train:
   num_envs: 8192
-  num_iterations: 300
+  num_iterations: 400
   rows: 10
   cols: 10
   total_timesteps: 98e6
   n_steps: 128
   batch_size: 65_536
-  learning_rate: 1.0e-4
+  learning_rate:
+    start: 3.5e-4
+    end: 3.0e-4
+    end_fraction: 1.0
   clip_range: 0.2
   gamma: 0.992
   ent_coef: 0.0025
   n_epochs: 10
   target_kl: 0.015
 eval:
-  num_envs: 4
-  rows: 4
-  cols: 4
+  num_envs: 1
+  rows: 1
+  cols: 1
 
 save_config:
   save_path: ../../models/isaac_models/

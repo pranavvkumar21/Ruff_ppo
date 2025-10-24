@@ -5,6 +5,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 import os, time
 from pathlib import Path
 from natsort import natsorted
+from stable_baselines3.common.vec_env import VecNormalize
 ROOT = Path(__file__).resolve().parent.parent
 
 def get_latest_model_path(folder_path, prefix):
@@ -48,6 +49,20 @@ class TensorboardCallback(BaseCallback):
                     self.logger.record(f"{k}_mean", np.mean(v))
         return True
 
+class CheckpointWithVecNorm(CheckpointCallback):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _on_step(self) -> bool:
+        result = super()._on_step()
+        if self.num_timesteps % self.save_freq == 0:
+            env = self.model.get_env()
+            if isinstance(env, VecNormalize):
+                vec_path = os.path.join(self.save_path, f"{self.name_prefix}_vecnormalize.pkl")
+                env.save(vec_path)
+                if self.verbose > 0:
+                    print(f"Saved VecNormalize stats to {vec_path}")
+        return result
 
 def create_checkpoint_callback(load=False):
     if not load:
@@ -63,7 +78,7 @@ def create_checkpoint_callback(load=False):
             exit(0)
         save_dir = Path(latest_model_path).parent
     print(f"CheckpointCallback: Models will be saved to {save_dir}")
-    return CheckpointCallback(
+    return CheckpointWithVecNorm(
         save_freq=3000,
         save_path=str(save_dir),
         name_prefix="ruff_ppo_model"

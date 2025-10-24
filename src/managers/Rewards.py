@@ -83,7 +83,7 @@ def rhythm_rewards(env, c1=1.0, height_thresh=0.011, offset=0.007):
     foot_zvel_reward = -0.03 * cx * (foot_vel_z.abs().sum(dim=1) ** 2) 
 
     #RG frequency penalty
-    freq = env.cmd["frequency"].sum(dim=1)
+    freq = env.cmd["frequency"].sum(dim=1)  
     freq_penalty = -0.03 * cx * freq
 
     return foot_stance_reward + foot_clear_reward + foot_slip_reward + foot_zvel_reward + freq_penalty
@@ -114,7 +114,39 @@ def RG_phase(env):
     reward = match.sum(dim=1) 
     return reward
 
-    
+def joint_torque_velocity_penalty(env, torque_weight=-0.0012, velocity_weight=-0.0008):
+    joint_torques = env.scene["ruff"].data.applied_torque
+    joint_velocities = env.scene["ruff"].data.joint_vel
+    cmd_x = mdp.generated_commands(env, command_name="velocity_command")[:, 0]
+    cx = 1.0 / cmd_x.abs().clamp_min(1e-3)
+    joint_torque_penalty = torch.norm(joint_torques,p=1,dim=1) * cx
+    joint_velocity_penalty = torch.norm(joint_velocities,p=2,dim=1) * cx
+
+    return torque_weight * joint_torque_penalty + velocity_weight * joint_velocity_penalty
+
+def policy_smoothness(env, policy_smoothness_weight=-0.016):
+    if not hasattr(env, "cmd"):
+        env.cmd = {}
+
+    if "prev_policy" not in env.cmd:
+        if hasattr(env, "action_manager") and hasattr(env.action_manager, "actions"):
+            env.cmd["prev_policy"] = env.action_manager.actions.clone()
+        else:
+            env.cmd["prev_policy"] = torch.zeros(
+                (env.scene.num_envs, env.action_manager.num_actions),
+                device=env.device,
+            )
+
+    current_policy = env.action_manager.action.clamp(-1.0, 1.0)
+    prev_policy = env.cmd["prev_policy"].clamp(-1.0, 1.0)
+
+    diff = current_policy - prev_policy
+    norm = torch.norm(diff, p=2, dim=1)
+    smoothness_penalty = policy_smoothness_weight * norm
+
+    env.cmd["prev_policy"] = current_policy.detach().clone()
+    return smoothness_penalty
+
 
 @configclass
 class RewardsCfg:
@@ -129,4 +161,5 @@ class RewardsCfg:
     foot_rhythm = RewTerm(func=rhythm_rewards, params={"c1": config["foot_rhythm"]["c1"], "height_thresh": config["foot_rhythm"]["height_thresh"], "offset": config["foot_rhythm"]["offset"]}, weight=config["foot_rhythm"]["weight"])
     joint_limits = RewTerm(func=joint_constraints, weight=config["joint_constraints"]["weight"])
     rg_phase = RewTerm(func=RG_phase, weight=config["rg_phase"]["weight"])
-
+    energy_penalty = RewTerm(func=joint_torque_velocity_penalty, params={"torque_weight": config["joint_penalty"]["torque_weight"], "velocity_weight": config["joint_penalty"]["velocity_weight"]}, weight=1.0)
+    policy_smoothness = RewTerm(func=policy_smoothness, params={"policy_smoothness_weight": config["policy_smoothness"]["weight"]}, weight=1.0)

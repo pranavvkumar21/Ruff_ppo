@@ -1,6 +1,8 @@
 models/*
-outputs/*
+videos/*
 logs/ppo_pybullet_tensorboard
 src/__pycache__/*
 *.pyc
 src/ppo_custom_pybullet_env.zip
+outputs/*
+src/${data}/*

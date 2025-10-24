@@ -46,11 +46,11 @@ terrain_gen = TerrainGeneratorCfg(
         #     border_width=0.1,
         #     inverted=True,
         # ),
-        "waves": HfWaveTerrainCfg(
-            amplitude_range=(0.02, 0.05),
-            num_waves=3,
-            border_width=0.1,
-        ),
+        # "waves": HfWaveTerrainCfg(
+        #     amplitude_range=(0.02, 0.05),
+        #     num_waves=3,
+        #     border_width=0.1,
+        # ),
 
     }
 )
@@ -61,7 +61,7 @@ class RuffSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/ruff",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{ROOT}/urdf/ruff_usd/ruff.usd", activate_contact_sensors=True),
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 0.45)),
-        actuators={"joint-acts": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=50, stiffness=1500,effort_limit=18)},
+        actuators={"joint-acts": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=10.0, stiffness=500, effort_limit=18.0)},
     )
     # ground = AssetBaseCfg(prim_path="/World/terrain", spawn=sim_utils.GroundPlaneCfg())
     terrain_importer = TerrainImporterCfg(
