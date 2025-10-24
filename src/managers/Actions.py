@@ -37,7 +37,7 @@ class PhaseAction(ActionTerm):
 
     @property
     def action_dim(self) -> int:
-        return N_PHASE
+        return N_PHASE #+ N_JOINTS
     @property
     def raw_actions(self) -> torch.Tensor:
         return self._raw
@@ -47,25 +47,24 @@ class PhaseAction(ActionTerm):
         return self._proc
 
     def process_actions(self, actions: torch.Tensor) -> None:
-        #convert actions[12:] to absolute value
+
         self._raw = actions.clone()
         actions = actions.abs()
         self._proc = actions
 
     def apply_actions(self) -> None:
-        # self.env.cmd["target"] = self._proc[:, :N_JOINTS] + self.env.scene[self.asset_name].data.joint_pos[:, self.joint_ids]
         self.env.cmd["frequency"] = self._proc
         delta = 2.0 * torch.pi * self.env.cmd["frequency"] * self.env.step_dt
         self.env.cmd["phase"] = torch.remainder(self.env.cmd["phase"] + delta, 2.0 * torch.pi)
-        # self.env.scene[self.asset_name].set_joint_position_target(self.env.cmd["target"],joint_ids=self.joint_ids)
+
 
 
 @configclass
 class ActionsCfg:
-    joint_pos = mdp.RelativeJointPositionActionCfg(
+    joint_pos = mdp.JointPositionActionCfg(
         asset_name="ruff",
         joint_names=config["scene"]["joint_names"],
-        scale=8*torch.pi/180.0,  # 2 degrees
+        scale=6*torch.pi/180.0,  # 4 degrees
     )
     phase = ActionTermCfg(class_type=PhaseAction, asset_name="ruff", clip={".*":(-1.0, 1.0)})
 

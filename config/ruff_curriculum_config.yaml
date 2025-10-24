@@ -1,0 +1,11 @@
+reward_curriculum:
+  reward_terms:
+    - twist
+    - foot_rhythm
+    - joint_limits
+    - rg_phase
+    - policy_smoothness
+    - energy_penalty
+    - policy_smoothness
+  num_steps: 10000
+  start_frac: 0.1
