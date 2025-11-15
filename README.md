@@ -1,6 +1,7 @@
 # Bio-Inspired Rhythmic Locomotion with Quadruped Robot using Proximal Policy Optimization Reinforcement Learning
 
 This project demonstrates how a rhythm generator (RG) can naturally stimulate periodic motor patterns within reinforcement learning frameworks. The system is implemented in Python using **Stable-Baselines3** and **Isaac Lab**.
+![ruff_walking](videos/ruff_2.gif)
 
 ## Overview
 

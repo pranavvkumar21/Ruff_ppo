@@ -6,3 +6,6 @@ src/__pycache__/*
 src/ppo_custom_pybullet_env.zip
 outputs/*
 src/${data}/*
+
+!videos/ruff.gif
+!videos/ruff_2.gif

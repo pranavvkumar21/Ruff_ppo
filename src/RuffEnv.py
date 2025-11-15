@@ -50,7 +50,7 @@ class RuffEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 10
         self.viewer.enable = True
         self.viewer.resolution = (1280, 720)
-        self.viewer.eye = (8, 8, 8)
+        self.viewer.eye = (4, 4, 4)
         self.viewer.lookat = (0.0, 0.0, 0.5)
         # prim_path = self.scene.ruff.root_physx_path  # or "/World/ruff/base_link"
         # cfg = MassPropertiesCfg(mass=10.5)

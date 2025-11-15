@@ -69,9 +69,9 @@ def config_env(cfg):
         cfg.scene.num_envs = config["eval"]["num_envs"]
         cfg.scene.terrain_importer.terrain_generator.num_rows = config["eval"]["rows"]
         cfg.scene.terrain_importer.terrain_generator.num_cols = config["eval"]["cols"]
-        cfg.commands.velocity_command.ranges.lin_vel_x = (0.3, 1.0)
-        cfg.commands.velocity_command.ranges.lin_vel_y = (0.0, 0.0)
-        cfg.commands.velocity_command.ranges.ang_vel_z = (0.2, 0.5)
+        cfg.commands.velocity_command.ranges.lin_vel_x = (0.3, 1.0) # replace during eval
+        cfg.commands.velocity_command.ranges.lin_vel_y = (0.0, 0.0) # replace during eval
+        cfg.commands.velocity_command.ranges.ang_vel_z = (0.0, 0.0) # replace during eval
 
     cfg.scene.terrain_importer.terrain_generator.size = (config["scene"]["env_spacing"], config["scene"]["env_spacing"])
     cfg.scene.env_spacing = config["scene"]["env_spacing"]
